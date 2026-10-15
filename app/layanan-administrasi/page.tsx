@@ -182,8 +182,8 @@ const LayananAdministrasiPage = () => {
           title: language === 'en' ? "Academic Documents" : "Dokumen Akademik",
           items: [
             {
-              text: language === 'en' ? "Active Student Certificate Request" : "Permohonan Surat Keterangan Aktif Studi",
-              url: "https://forms.gle/XG1TVHAG7cNkpKEG7"
+              text: language === 'en' ? "Active Student Certificate Request (Instant Online)" : "Permohonan Surat Keterangan Aktif Studi (Online Mandiri)",
+              url: "/layanan-administrasi/ajukan?jenis=surat-aktif-studi"
             },
             {
               text: language === 'en'
@@ -191,8 +191,14 @@ const LayananAdministrasiPage = () => {
                 : "Permohonan Surat Keterangan Aktif Studi (Pascasarjana / MMT)",
               url: "https://s.itk.ac.id/surataktifstudis2"
             },
-            { text: language === 'en' ? "Graduation Certificate Request" : "Permohonan Surat Keterangan Lulus (SKL)", url: "https://forms.gle/njqaU8cs81KwVHiJ9" },
-            { text: language === 'en' ? "Academic Document Service Request" : "Permohonan Layanan Dokumen Akademik (Transkip Mata Kuliah, KHS dan FRS)", url: "https://forms.gle/YbWMvtHvbgKAQPkS7" },
+            { 
+              text: language === 'en' ? "Graduation Certificate Request (SKL)" : "Permohonan Surat Keterangan Lulus (SKL)", 
+              url: "/layanan-administrasi/ajukan?jenis=dokumen-akademik&sub=skl" 
+            },
+            { 
+              text: language === 'en' ? "Academic Document Service (Transcript, KHS & FRS - Online)" : "Permohonan Layanan Dokumen Akademik (Transkrip Mata Kuliah, KHS dan FRS)", 
+              url: "/layanan-administrasi/ajukan?jenis=dokumen-akademik" 
+            },
             { text: language === 'en' ? "Class Attendance Dispensation Request" : "Permohonan Dispensasi Perkuliahan", url: "https://docs.google.com/forms/u/0/d/1KgPpebd-SnQsAbTCvkn27H4JNBXS_05Amfd2kUw6YUA/viewform?edit_requested=true" },
             { text: language === 'en' ? "Resignation Request" : "Permohonan Pengunduran Diri", url: "https://docs.google.com/forms/d/e/1FAIpQLSdgfezuRykiiFUqAqTE7ZnvtYFX-UhFuYfeD0WtULXBRPme6w/viewform" }
           ]
@@ -212,7 +218,10 @@ const LayananAdministrasiPage = () => {
         {
           title: language === 'en' ? "Document Legalization" : "Legalisasi Dokumen",
           items: [
-            { text: language === 'en' ? "Document Legalization (Grade Report, Temporary Transcript, Graduation Letter, Student ID, FRS, Active Student Certificate, Accreditation Certificate)" : "Legalisasi Dokumen (KHS, Transkrip Sementara, SKL, KTM, FRS, Surat Keterangan Aktif Studi, Sertifikat Akreditasi)", url: "https://forms.gle/Z7FiBx4B2zMRuUGQ7" }
+            { 
+              text: language === 'en' ? "Document Legalization (Grade Report, Transcript, SKL, Student ID, FRS, Certificate)" : "Legalisasi Dokumen (KHS, Transkrip Sementara, SKL, KTM, FRS, Surat Aktif Studi, Akreditasi)", 
+              url: "/layanan-administrasi/ajukan?jenis=legalisasi-dokumen" 
+            }
           ]
         }
       ],

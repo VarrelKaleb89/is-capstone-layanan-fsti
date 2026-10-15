@@ -46,6 +46,24 @@ function AjukanSuratContent() {
       setShowAccessSurveyModal(true);
     }
   }, []);
+
+  const serviceNames: Record<LetterType, string> = {
+    'surat-aktif-studi': 'Surat Keterangan Aktif Studi',
+    'surat-pengantar-kp': 'Surat Pengantar Kerja Praktik (KP)',
+    'surat-rekomendasi': 'Surat Rekomendasi Kemahasiswaan / Beasiswa',
+    'dokumen-akademik': 'Permohonan Dokumen Akademik (Transkrip, KHS, FRS, SKL)',
+    'legalisasi-dokumen': 'Permohonan Legalisasi Dokumen Akademik',
+  };
+
+  const initialSub = searchParams.get('sub');
+  const getInitialDocs = () => {
+    if (initialSub === 'transkrip') return ['Transkrip Nilai Sementara (Kumulatif)'];
+    if (initialSub === 'khs') return ['Kartu Hasil Studi (KHS)'];
+    if (initialSub === 'frs') return ['Formulir Rencana Studi (FRS)'];
+    if (initialSub === 'skl') return ['Surat Keterangan Lulus (SKL)'];
+    return ['Transkrip Nilai Sementara (Kumulatif)'];
+  };
+
   const [fullName, setFullName] = useState('');
   const [nim, setNim] = useState('');
   const [studyProgram, setStudyProgram] = useState('Informatika');
@@ -59,15 +77,21 @@ function AjukanSuratContent() {
   const [email, setEmail] = useState('');
   const [attachment, setAttachment] = useState<File | null>(null);
 
+  // Specialized fields for Dokumen Akademik & Legalisasi
+  const [academicDocTypes, setAcademicDocTypes] = useState<string[]>(getInitialDocs());
+  const [targetSemester, setTargetSemester] = useState('Semua Semester (Kumulatif)');
+  const [outputFormat, setOutputFormat] = useState<'digital_pdf' | 'cetak_hardcopy'>('digital_pdf');
+  const [copiesCount, setCopiesCount] = useState(1);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
-  const serviceNames: Record<LetterType, string> = {
-    'surat-aktif-studi': 'Surat Keterangan Aktif Studi',
-    'surat-pengantar-kp': 'Surat Pengantar Kerja Praktik (KP)',
-    'surat-rekomendasi': 'Surat Rekomendasi Kemahasiswaan / Beasiswa',
+  const toggleDocType = (doc: string) => {
+    setAcademicDocTypes((prev) =>
+      prev.includes(doc) ? prev.filter((d) => d !== doc) : [...prev, doc]
+    );
   };
 
   const validate = () => {
@@ -78,7 +102,10 @@ function AjukanSuratContent() {
     } else if (!/^\d{6,10}$/.test(nim.trim())) {
       errs.nim = 'Format NIM tidak valid (harus 6-10 digit angka)';
     }
-    if (!purpose.trim()) errs.purpose = 'Keperluan permohonan surat wajib diisi';
+    if ((serviceType === 'dokumen-akademik' || serviceType === 'legalisasi-dokumen') && academicDocTypes.length === 0) {
+      errs.academicDocTypes = 'Pilih minimal satu jenis dokumen akademik yang diajukan';
+    }
+    if (!purpose.trim()) errs.purpose = 'Keperluan permohonan surat/dokumen wajib diisi';
     if (!whatsapp.trim()) errs.whatsapp = 'Nomor WhatsApp wajib diisi';
     if (!email.trim() || !email.includes('@')) errs.email = 'Email aktif kampus/pribadi wajib valid';
 
@@ -110,7 +137,11 @@ function AjukanSuratContent() {
         parentJob: parentJob.trim() || undefined,
         whatsapp: whatsapp.trim(),
         email: email.trim(),
-        attachmentName: attachment ? attachment.name : 'Bukti_KRS_Mahasiswa.pdf',
+        attachmentName: attachment ? attachment.name : 'Bukti_KRS_KTM_Mahasiswa.pdf',
+        academicDocTypes: (serviceType === 'dokumen-akademik' || serviceType === 'legalisasi-dokumen') ? academicDocTypes : undefined,
+        targetSemester: serviceType === 'dokumen-akademik' ? targetSemester : undefined,
+        outputFormat,
+        copiesCount,
       });
 
       setIsSubmitting(false);
@@ -282,14 +313,16 @@ function AjukanSuratContent() {
                       <span className="w-7 h-7 rounded-full bg-primary-100 text-primary-700 text-sm font-bold flex items-center justify-center">
                         1
                       </span>
-                      Pilih Jenis Layanan Persuratan
+                      Pilih Jenis Layanan Persuratan / Dokumen
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {(
                         [
-                          { id: 'surat-aktif-studi', label: 'Surat Aktif Studi', badge: 'Prioritas' },
-                          { id: 'surat-pengantar-kp', label: 'Surat Pengantar KP', badge: 'Magang' },
-                          { id: 'surat-rekomendasi', label: 'Surat Rekomendasi', badge: 'Beasiswa/Lomba' },
+                          { id: 'surat-aktif-studi', label: 'Surat Aktif Studi', badge: 'Prioritas', desc: 'Surat keterangan aktif kuliah resmi FSTI' },
+                          { id: 'dokumen-akademik', label: 'Dokumen Akademik (Transkrip/KHS/FRS)', badge: 'Mandiri Sistem', desc: 'Transkrip nilai, KHS, FRS, SKL langsung di sistem' },
+                          { id: 'surat-pengantar-kp', label: 'Surat Pengantar KP', badge: 'Magang', desc: 'Pengantar kerja praktik ke instansi' },
+                          { id: 'surat-rekomendasi', label: 'Surat Rekomendasi', badge: 'Beasiswa/Lomba', desc: 'Rekomendasi prestasi, lomba & beasiswa' },
+                          { id: 'legalisasi-dokumen', label: 'Legalisasi Dokumen', badge: 'Legalisir Resmi', desc: 'Pengesahan transkrip, ijazah & sertifikat' },
                         ] as const
                       ).map((item) => (
                         <button
@@ -303,7 +336,11 @@ function AjukanSuratContent() {
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                              item.id === 'dokumen-akademik'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
                               {item.badge}
                             </span>
                             {serviceType === item.id && (
@@ -311,6 +348,7 @@ function AjukanSuratContent() {
                             )}
                           </div>
                           <p className="font-semibold text-sm text-gray-900 mt-2">{item.label}</p>
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-1">{item.desc}</p>
                         </button>
                       ))}
                     </div>
@@ -448,9 +486,181 @@ function AjukanSuratContent() {
                       Keperluan & Dokumen Pendukung
                     </h3>
                     <div className="space-y-4">
+                      {/* Specialized Box: Pilihan Dokumen Akademik */}
+                      {serviceType === 'dokumen-akademik' && (
+                        <div className="bg-primary-50/50 border border-primary-200 rounded-xl p-5 space-y-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-xs font-bold text-primary-950 uppercase tracking-wide">
+                                Pilih Dokumen Akademik yang Diminta *
+                              </label>
+                              <span className="text-[11px] text-primary-700 font-medium">Bisa pilih lebih dari satu</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {[
+                                { id: 'Transkrip Nilai Sementara (Kumulatif)', desc: 'Daftar seluruh nilai mata kuliah s/d semester berjalan' },
+                                { id: 'Kartu Hasil Studi (KHS)', desc: 'Nilai semester tertentu yang telah disahkan' },
+                                { id: 'Formulir Rencana Studi (FRS)', desc: 'Riwayat pengambilan SKS & kartu rencana studi' },
+                                { id: 'Surat Keterangan Lulus (SKL)', desc: 'Surat bukti kelulusan yudisium sebelum wisuda' },
+                              ].map((item) => {
+                                const isChecked = academicDocTypes.includes(item.id);
+                                return (
+                                  <label
+                                    key={item.id}
+                                    onClick={() => toggleDocType(item.id)}
+                                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                      isChecked
+                                        ? 'bg-white border-primary-600 shadow-sm ring-1 ring-primary-500'
+                                        : 'bg-white/70 border-gray-200 hover:border-primary-300'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {}}
+                                      className="mt-1 rounded text-primary-600 focus:ring-primary-500"
+                                    />
+                                    <div>
+                                      <p className="text-xs font-bold text-gray-900">{item.id}</p>
+                                      <p className="text-[11px] text-gray-500 mt-0.5">{item.desc}</p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {errors.academicDocTypes && (
+                              <p className="text-xs text-red-500 mt-1.5 font-medium">{errors.academicDocTypes}</p>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-primary-100">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                Cakupan Periode / Semester Dokumen *
+                              </label>
+                              <select
+                                value={targetSemester}
+                                onChange={(e) => setTargetSemester(e.target.value)}
+                                className="w-full p-2.5 rounded-lg border border-gray-300 text-xs bg-white focus:ring-primary-500"
+                              >
+                                <option value="Semua Semester (Kumulatif Lengkap)">Semua Semester (Kumulatif Lengkap)</option>
+                                <option value="Semester Genap 2025/2026">Semester Genap 2025/2026</option>
+                                <option value="Semester Ganjil 2025/2026">Semester Ganjil 2025/2026</option>
+                                <option value="Semester Genap 2024/2025">Semester Genap 2024/2025</option>
+                                <option value="Semester Ganjil 2024/2025">Semester Ganjil 2024/2025</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                Format Luaran Dokumen *
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setOutputFormat('digital_pdf')}
+                                  className={`p-2 rounded-lg border text-xs font-medium text-center transition-all ${
+                                    outputFormat === 'digital_pdf'
+                                      ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  Digital PDF (E-Sign)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setOutputFormat('cetak_hardcopy')}
+                                  className={`p-2 rounded-lg border text-xs font-medium text-center transition-all ${
+                                    outputFormat === 'cetak_hardcopy'
+                                      ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  Cetak Cap Basah (TU)
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Specialized Box: Legalisasi Dokumen */}
+                      {serviceType === 'legalisasi-dokumen' && (
+                        <div className="bg-primary-50/50 border border-primary-200 rounded-xl p-5 space-y-4">
+                          <div>
+                            <label className="block text-xs font-bold text-primary-950 uppercase tracking-wide mb-2">
+                              Pilih Berkas yang Ingin Dilegalisasi *
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {[
+                                'Transkrip Nilai Akademik',
+                                'Kartu Hasil Studi (KHS)',
+                                'Ijazah / Surat Keterangan Lulus (SKL)',
+                                'Sertifikat Akreditasi Program Studi / Fakultas',
+                              ].map((item) => {
+                                const isChecked = academicDocTypes.includes(item);
+                                return (
+                                  <label
+                                    key={item}
+                                    onClick={() => toggleDocType(item)}
+                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                      isChecked
+                                        ? 'bg-white border-primary-600 shadow-sm ring-1 ring-primary-500'
+                                        : 'bg-white/70 border-gray-200 hover:border-primary-300'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {}}
+                                      className="rounded text-primary-600 focus:ring-primary-500"
+                                    />
+                                    <span className="text-xs font-bold text-gray-900">{item}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {errors.academicDocTypes && (
+                              <p className="text-xs text-red-500 mt-1.5 font-medium">{errors.academicDocTypes}</p>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-primary-100">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                Jumlah Rangkap Salinan Legalisir
+                              </label>
+                              <select
+                                value={copiesCount}
+                                onChange={(e) => setCopiesCount(Number(e.target.value))}
+                                className="w-full p-2.5 rounded-lg border border-gray-300 text-xs bg-white focus:ring-primary-500"
+                              >
+                                <option value={1}>1 Rangkap</option>
+                                <option value={2}>2 Rangkap</option>
+                                <option value={3}>3 Rangkap</option>
+                                <option value={5}>5 Rangkap (Maksimal)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                Format Pengesahan Legalisir
+                              </label>
+                              <select
+                                value={outputFormat}
+                                onChange={(e) => setOutputFormat(e.target.value as any)}
+                                className="w-full p-2.5 rounded-lg border border-gray-300 text-xs bg-white focus:ring-primary-500"
+                              >
+                                <option value="digital_pdf">E-Legalisir Digital (QR E-Verifikasi)</option>
+                                <option value="cetak_hardcopy">Cap Basah Stempel Fisik (Ambil di TU)</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-1">
-                          Keperluan Pembuatan Surat *
+                          Keperluan Permohonan {serviceType === 'dokumen-akademik' ? 'Dokumen' : 'Surat'} *
                         </label>
                         <textarea
                           rows={3}

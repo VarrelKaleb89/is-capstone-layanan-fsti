@@ -1,4 +1,9 @@
-export type LetterType = 'surat-aktif-studi' | 'surat-pengantar-kp' | 'surat-rekomendasi';
+export type LetterType = 
+  | 'surat-aktif-studi' 
+  | 'surat-pengantar-kp' 
+  | 'surat-rekomendasi'
+  | 'dokumen-akademik'
+  | 'legalisasi-dokumen';
 
 export type LetterStatus = 
   | 'diajukan' 
@@ -25,6 +30,12 @@ export interface LetterRequest {
   whatsapp: string;
   email: string;
   attachmentName?: string;
+  // Specific fields for Academic Documents (Transkrip, KHS, FRS, SKL, Legalisasi)
+  academicDocTypes?: string[];
+  targetSemester?: string;
+  outputFormat?: 'digital_pdf' | 'cetak_hardcopy';
+  copiesCount?: number;
+  legalizationDocs?: string[];
   status: LetterStatus;
   statusLabel: string;
   createdAt: string;
@@ -150,6 +161,61 @@ const INITIAL_REQUESTS: LetterRequest[] = [
     updatedAt: '2026-10-15 13:10',
     isSurveyCompleted: false,
     adminNotes: 'Menunggu penelaahan berkas oleh staf tendik FSTI.',
+  },
+  {
+    id: 'req-005',
+    ticketNumber: 'FSTI-AKAD-20261015-005',
+    serviceType: 'dokumen-akademik',
+    serviceName: 'Permohonan Dokumen Akademik (Transkrip Nilai & KHS)',
+    fullName: 'Rizky Ramadhan',
+    nim: '10211050',
+    studyProgram: 'Informatika',
+    degree: 'S1',
+    semester: '7 (Tujuh)',
+    academicYear: '2026/2027',
+    purpose: 'Pemberkasan Magang dan Studi Independen Bersertifikat (MSIB / MBKM Kampus Merdeka)',
+    academicDocTypes: ['Transkrip Nilai Sementara (Kumulatif)', 'Kartu Hasil Studi (KHS) Semester 6'],
+    targetSemester: 'Semua Semester (Kumulatif s/d Semester 6)',
+    outputFormat: 'digital_pdf',
+    whatsapp: '081255667788',
+    email: 'rizky.ramadhan@student.itk.ac.id',
+    attachmentName: 'KTM_Dan_KRS_RizkyRamadhan.pdf',
+    status: 'siap_diunduh',
+    statusLabel: 'Siap Diunduh',
+    createdAt: '2026-10-14 11:00',
+    updatedAt: '2026-10-15 14:15',
+    letterNumber: '145/IT10.FSTI/AKAD/2026',
+    letterDate: '15 Oktober 2026',
+    signedBy: 'Adi Mahmud Jaya Marindra, S.T., M.Eng., Ph.D.',
+    signedNip: '198506152014041001',
+    signedPosition: 'Dekan Fakultas Sains dan Teknologi Informasi',
+    isSurveyCompleted: false,
+    adminNotes: 'Dokumen transkrip dan KHS telah diverifikasi dari pangkalan data akademik dan disahkan Dekan.',
+  },
+  {
+    id: 'req-006',
+    ticketNumber: 'FSTI-AKAD-20261015-006',
+    serviceType: 'dokumen-akademik',
+    serviceName: 'Permohonan Dokumen Akademik (KHS & FRS)',
+    fullName: 'Nadia Putri Rahmawati',
+    nim: '10221012',
+    studyProgram: 'Sistem Informasi',
+    degree: 'S1',
+    semester: '5 (Lima)',
+    academicYear: '2026/2027',
+    purpose: 'Pengajuan Beasiswa Djarum Plus & Asuransi Pendidikan',
+    academicDocTypes: ['Kartu Hasil Studi (KHS)', 'Formulir Rencana Studi (FRS)'],
+    targetSemester: 'Semester Genap 2025/2026',
+    outputFormat: 'digital_pdf',
+    whatsapp: '082199887766',
+    email: 'nadia.putri@student.itk.ac.id',
+    attachmentName: 'KTM_NadiaPutri.pdf',
+    status: 'diverifikasi_tendik',
+    statusLabel: 'Diverifikasi Tendik',
+    createdAt: '2026-10-15 10:20',
+    updatedAt: '2026-10-15 11:45',
+    isSurveyCompleted: false,
+    adminNotes: 'Data pemohon cocok, berkas permohonan sedang ditelaah tendik untuk dialirkan ke pimpinan.',
   }
 ];
 
@@ -243,6 +309,8 @@ export function createLetterRequest(
     'surat-aktif-studi': 'FSTI-AKTIF',
     'surat-pengantar-kp': 'FSTI-KP',
     'surat-rekomendasi': 'FSTI-REK',
+    'dokumen-akademik': 'FSTI-AKAD',
+    'legalisasi-dokumen': 'FSTI-LEGAL',
   };
 
   const ticketNumber = `${prefixMap[data.serviceType] || 'FSTI'}-${dateStr}-${randomSuffix}`;

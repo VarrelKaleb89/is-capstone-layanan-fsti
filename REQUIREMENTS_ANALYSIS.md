@@ -165,7 +165,8 @@ Sesuai komitmen dan arahan Bu Desy pada wawancara:
 |  [x] Pratinjau surat & ekspor PDF aman.                                                            |
 |                                                                                                    |
 | SHOULD HAVE (Target Tgl 28 - Launching):                                                           |
-|  [x] Penambahan template surat lainnya (Surat Pengantar KP, Rekomendasi Beasiswa, dll).            |
+|  [x] Formulir mandiri dokumen akademik (Transkrip, KHS, FRS, SKL) tanpa Google Form.               |
+|  [x] Penambahan template surat lainnya (Surat Pengantar KP, Rekomendasi Beasiswa, Legalisasi).      |
 |  [x] Isolasi halaman tracking khusus milik masing-masing mahasiswa.                                |
 |  [x] Penguncian tombol unduh dengan Survey Gatekeeper (Wajib isi survei kepuasan).                 |
 |  [x] Pemisahan domain/URL login admin dari portal mahasiswa publik.                                |
@@ -177,7 +178,7 @@ Sesuai komitmen dan arahan Bu Desy pada wawancara:
 |  [ ] Integrasi TTE resmi bersertifikat digital (Balai Sertifikasi Elektronik / BSrE).              |
 |                                                                                                    |
 | WON'T HAVE (Ditunda / Di luar Scope Saat Ini):                                                     |
-|  [-] Integrasi data KHS/Transkrip dari sistem akademik "Gerbang" (ditunda karena keterbatasan API).|
+|  [-] Integrasi background sync API otomatis dari server database Gerbang (verifikasi tetap di web).|
 +----------------------------------------------------------------------------------------------------+
 ```
 

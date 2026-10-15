@@ -306,9 +306,24 @@ function MahasiswaTrackingContent() {
 
                           <div className="space-y-2 text-gray-700">
                             <div>
-                              <span className="text-gray-400 block">Keperluan Surat:</span>
+                              <span className="text-gray-400 block">Keperluan Dokumen/Surat:</span>
                               <span className="font-medium text-gray-900">{item.purpose}</span>
                             </div>
+                            {item.academicDocTypes && item.academicDocTypes.length > 0 && (
+                              <div className="pt-2 border-t border-gray-100">
+                                <span className="text-gray-400 block mb-1">Dokumen yang Diajukan:</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {item.academicDocTypes.map((doc, idx) => (
+                                    <span key={idx} className="bg-primary-50 border border-primary-200 text-primary-800 font-semibold px-2 py-0.5 rounded text-[11px]">
+                                      {doc}
+                                    </span>
+                                  ))}
+                                </div>
+                                <span className="text-[11px] text-gray-500 block mt-1">
+                                  Cakupan: {item.targetSemester || 'Semua Semester'} · Format: {item.outputFormat === 'cetak_hardcopy' ? 'Cetak Fisik TU' : 'Digital PDF'}
+                                </span>
+                              </div>
+                            )}
                             {item.adminNotes && (
                               <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-200 text-amber-900">
                                 <span className="font-bold block text-[11px]">Catatan Petugas:</span>

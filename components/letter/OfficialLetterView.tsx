@@ -27,9 +27,11 @@ export default function OfficialLetterView({
     'surat-aktif-studi': 'SURAT KETERANGAN AKTIF KULIAH',
     'surat-pengantar-kp': 'SURAT PENGANTAR KERJA PRAKTIK',
     'surat-rekomendasi': 'SURAT REKOMENDASI KEMAHASISWAAN',
+    'dokumen-akademik': 'SURAT KETERANGAN & PENGESAHAN DOKUMEN AKADEMIK',
+    'legalisasi-dokumen': 'LEMBAR PENGESAHAN & LEGALISASI DOKUMEN',
   };
 
-  const title = letterTitleMap[request.serviceType] || 'SURAT KETERANGAN MAHASISWA';
+  const title = letterTitleMap[request.serviceType] || 'SURAT KETERANGAN RESMI MAHASISWA';
   const letterNumber = request.letterNumber || '142/IT10.FSTI/KM/2026';
   const letterDate = request.letterDate || '15 Oktober 2026';
   const signedBy = request.signedBy || 'Adi Mahmud Jaya Marindra, S.T., M.Eng., Ph.D.';
@@ -45,7 +47,7 @@ export default function OfficialLetterView({
           <div>
             <h4 className="font-semibold text-sm sm:text-base">Dokumen Resmi Terverifikasi FSTI ITK</h4>
             <p className="text-xs text-primary-200">
-              Format PDF Terkunci & Keabsahan Tanda Tangan Terproteksi
+              Format PDF Terkunci & Keabsahan Tanda Tangan Terproteksi (Sistem Terpadu FSTI)
             </p>
           </div>
         </div>
@@ -138,7 +140,7 @@ export default function OfficialLetterView({
             <table className="w-full text-[13px]">
               <tbody>
                 <tr className="align-top py-1">
-                  <td className="w-44 py-1">Nama Lengkap</td>
+                  <td className="w-48 py-1">Nama Lengkap</td>
                   <td className="w-4 py-1">:</td>
                   <td className="py-1 font-bold">{request.fullName}</td>
                 </tr>
@@ -173,17 +175,85 @@ export default function OfficialLetterView({
             </table>
           </div>
 
-          <p>
-            Adalah benar mahasiswa yang bersangkutan saat ini tercatat sebagai mahasiswa aktif pada Fakultas Sains dan Teknologi Informasi Institut Teknologi Kalimantan pada Tahun Akademik {request.academicYear || '2026/2027'}.
-          </p>
+          {/* Specialized Section for Academic Documents (Transkrip, KHS, FRS, SKL) */}
+          {request.serviceType === 'dokumen-akademik' ? (
+            <div className="space-y-3">
+              <p>
+                Adalah benar mahasiswa yang bersangkutan secara resmi mengajukan permohonan penerbitan / verifikasi dokumen akademik melalui Sistem Informasi Layanan Terpadu FSTI dengan rincian berkas sebagai berikut:
+              </p>
+              <div className="bg-slate-50 border border-slate-300 rounded p-3 font-sans text-xs my-2">
+                <table className="w-full text-slate-800">
+                  <tbody>
+                    <tr className="border-b border-slate-200">
+                      <td className="py-1.5 font-semibold w-44">Jenis Dokumen Diminta</td>
+                      <td className="py-1.5">:</td>
+                      <td className="py-1.5 font-bold text-primary-900">
+                        {request.academicDocTypes && request.academicDocTypes.length > 0
+                          ? request.academicDocTypes.join(', ')
+                          : 'Transkrip Nilai / Kartu Hasil Studi'}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-slate-200">
+                      <td className="py-1.5 font-semibold">Cakupan Periode / Semester</td>
+                      <td className="py-1.5">:</td>
+                      <td className="py-1.5">{request.targetSemester || 'Semua Semester (Kumulatif)'}</td>
+                    </tr>
+                    <tr className="border-b border-slate-200">
+                      <td className="py-1.5 font-semibold">Format Dokumen Disahkan</td>
+                      <td className="py-1.5">:</td>
+                      <td className="py-1.5">
+                        {request.outputFormat === 'cetak_hardcopy'
+                          ? 'Dokumen Fisik Cetak Cap Basah (Diverifikasi Tata Usaha FSTI)'
+                          : 'Digital PDF Resmi Terenkripsi (Dengan QR E-Verifikasi)'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 font-semibold">Status Pangkalan Data</td>
+                      <td className="py-1.5">:</td>
+                      <td className="py-1.5 text-emerald-700 font-bold">
+                        TERVERIFIKASI VALID DENGAN SISTEM AKADEMIK ITK
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                Dokumen dan catatan akademik tersebut telah ditelaah serta disahkan oleh Pimpinan Fakultas Sains dan Teknologi Informasi Institut Teknologi Kalimantan untuk dipergunakan bagi keperluan:{' '}
+                <span className="font-semibold">{request.purpose}</span>.
+              </p>
+            </div>
+          ) : request.serviceType === 'legalisasi-dokumen' ? (
+            <div className="space-y-3">
+              <p>
+                Berdasarkan hasil penelaahan dan pencocokan dokumen asli terhadap arsip akademik Fakultas Sains dan Teknologi Informasi Institut Teknologi Kalimantan, dengan ini disahkan keabsahan legalisasi berkas:
+              </p>
+              <div className="bg-slate-50 border border-slate-300 rounded p-3 font-sans text-xs my-2">
+                <p className="font-semibold text-primary-900">
+                  Dokumen Dilegalisir: {request.academicDocTypes?.join(', ') || 'Transkrip Akademik / KHS'}
+                </p>
+                <p className="text-slate-600 mt-1">
+                  Status: <span className="text-emerald-700 font-bold">COCOK DAN SAH DENGAN ARSIP ASLI</span>
+                </p>
+              </div>
+              <p>
+                Legalisasi ini diterbitkan untuk keperluan:{' '}
+                <span className="font-semibold">{request.purpose}</span>.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p>
+                Adalah benar mahasiswa yang bersangkutan saat ini tercatat sebagai mahasiswa aktif pada Fakultas Sains dan Teknologi Informasi Institut Teknologi Kalimantan pada Tahun Akademik {request.academicYear || '2026/2027'}.
+              </p>
+              <p>
+                Surat keterangan ini diberikan kepada yang bersangkutan untuk keperluan:{' '}
+                <span className="font-semibold">{request.purpose}</span>.
+              </p>
+            </div>
+          )}
 
           <p>
-            Surat keterangan ini diberikan kepada yang bersangkutan untuk keperluan:{' '}
-            <span className="font-semibold">{request.purpose}</span>.
-          </p>
-
-          <p>
-            Demikian surat keterangan ini kami buat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.
+            Demikian dokumen pengesahan keterangan resmi ini kami buat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.
           </p>
         </div>
 

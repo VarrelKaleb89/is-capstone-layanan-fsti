@@ -591,6 +591,22 @@ export default function AdminPortalPage() {
                     <span className="text-gray-500 block">Keperluan:</span>
                     <span className="font-medium text-gray-800">{selectedRequest.purpose}</span>
                   </div>
+                  {selectedRequest.serviceType === 'dokumen-akademik' && (
+                    <div className="pt-2 border-t border-gray-100 bg-primary-50/70 p-2.5 rounded-lg space-y-1">
+                      <span className="font-bold text-primary-950 block">Dokumen Akademik Diminta:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedRequest.academicDocTypes?.map((doc, idx) => (
+                          <span key={idx} className="bg-white border border-primary-300 text-primary-900 font-semibold px-2 py-0.5 rounded text-[10px]">
+                            {doc}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-[11px] text-primary-800 pt-1">
+                        <span>Periode: <strong>{selectedRequest.targetSemester || 'Semua Semester'}</strong></span>
+                        <span className="block">Format: <strong>{selectedRequest.outputFormat === 'cetak_hardcopy' ? 'Cetak Cap Basah (TU)' : 'Digital PDF'}</strong></span>
+                      </div>
+                    </div>
+                  )}
                   {selectedRequest.parentName && (
                     <div className="pt-1 border-t border-gray-100">
                       <span className="text-gray-500 block">Orang Tua / Wali:</span>

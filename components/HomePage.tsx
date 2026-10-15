@@ -243,7 +243,7 @@ function HomePage() {
                 title={t('home.popularServices.legalizationTitle')}
                 description={t('home.popularServices.legalizationDesc')}
                 icon={<CheckCircle />}
-                url="https://forms.gle/Z7FiBx4B2zMRuUGQ7"
+                url="/layanan-administrasi/ajukan?jenis=legalisasi-dokumen"
                 compact
               />
             </SafeAnimatedSection>
