@@ -452,3 +452,67 @@ export function resetToDefaultMockData(): LetterRequest[] {
   }
   return INITIAL_REQUESTS;
 }
+
+// ---------------------------------------------------------------------------
+// Manajemen Tanda Tangan Digital Pimpinan / Dekan
+// Tanda tangan diunggah sekali sebagai gambar PNG (base64 data URL) dan
+// otomatis ditempelkan ke setiap surat resmi yang disahkan pimpinan.
+// ---------------------------------------------------------------------------
+
+const SIGNATURE_KEY = 'layanan_fsti_pimpinan_signature_v1';
+
+export interface SignatureData {
+  /** Data URL (data:image/png;base64,...) dari gambar tanda tangan. */
+  dataUrl: string;
+  /** Nama file asli yang diunggah, untuk ditampilkan di panel. */
+  fileName: string;
+  /** Ukuran file dalam byte. */
+  size: number;
+  /** Waktu unggah (ISO string). */
+  uploadedAt: string;
+  /** Nama pejabat penanda tangan. */
+  signerName?: string;
+  /** NIP pejabat penanda tangan. */
+  signerNip?: string;
+  /** Lebar tanda tangan dalam persen (%) terhadap area tanda tangan. Default 55. */
+  widthPercent?: number;
+  /** Geser horizontal dalam persen (%) relatif terhadap tengah area. Negatif = kiri. Default 0. */
+  offsetXPercent?: number;
+  /** Geser vertikal dalam persen (%) relatif terhadap tengah area. Negatif = atas. Default 0. */
+  offsetYPercent?: number;
+}
+
+/** Nilai default pengaturan tampilan tanda tangan (dipakai bila field kosong). */
+export const DEFAULT_SIGNATURE_LAYOUT = {
+  widthPercent: 55,
+  offsetXPercent: 0,
+  offsetYPercent: 0,
+};
+
+/** Mengambil tanda tangan pimpinan yang tersimpan, atau null jika belum ada. */
+export function getSignature(): SignatureData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(SIGNATURE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SignatureData;
+  } catch (err) {
+    console.error('Failed to parse signature from storage', err);
+    return null;
+  }
+}
+
+/** Menyimpan tanda tangan pimpinan (menimpa yang lama bila ada). */
+export function saveSignature(data: SignatureData): SignatureData {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SIGNATURE_KEY, JSON.stringify(data));
+  }
+  return data;
+}
+
+/** Menghapus tanda tangan pimpinan yang tersimpan. */
+export function removeSignature(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(SIGNATURE_KEY);
+  }
+}

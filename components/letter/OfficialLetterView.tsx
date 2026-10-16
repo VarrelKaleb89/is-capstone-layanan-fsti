@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { LetterRequest } from '@/lib/letter-service';
+import { LetterRequest, getSignature, SignatureData } from '@/lib/letter-service';
 import { Printer, Download, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
 import Button from '@/components/ui/Button';
 
@@ -18,6 +18,13 @@ export default function OfficialLetterView({
   showPrintButton = true,
 }: OfficialLetterViewProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [signature, setSignature] = useState<SignatureData | null>(null);
+
+  // Ambil tanda tangan digital pimpinan yang tersimpan (PNG base64 + posisi & ukuran)
+  // untuk ditempelkan otomatis ke surat. Fallback ke tanda tangan simulasi bila kosong.
+  useEffect(() => {
+    setSignature(getSignature());
+  }, [request.id]);
 
   const handlePrint = () => {
     window.print();
@@ -309,14 +316,28 @@ export default function OfficialLetterView({
                 <span>DEKAN</span>
               </div>
 
-              {/* Tanda Tangan Basah/Digital Dekan */}
-              <div className="relative z-10 w-44 h-16 flex items-center justify-center pointer-events-none select-none">
-                <svg viewBox="0 0 200 80" className="w-full h-full text-blue-900 fill-none stroke-current stroke-2">
-                  <path d="M 15 50 Q 40 10 70 45 T 120 30 T 160 55 Q 175 40 190 20" />
-                  <path d="M 35 30 Q 60 70 85 25 Q 110 65 140 40" strokeWidth="1.5" />
-                  <path d="M 20 60 L 180 62" strokeWidth="1" strokeDasharray="3 3" />
-                </svg>
-              </div>
+              {/* Tanda Tangan Digital Pimpinan (PNG yang diunggah + posisi & ukuran) */}
+              {signature ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={signature.dataUrl}
+                  alt={`Tanda tangan ${signedBy}`}
+                  className="absolute top-1/2 left-1/2 z-10 object-contain pointer-events-none select-none mix-blend-multiply"
+                  style={{
+                    width: `${signature.widthPercent ?? 55}%`,
+                    transform: `translate(calc(-50% + ${signature.offsetXPercent ?? 0}%), calc(-50% + ${signature.offsetYPercent ?? 0}%))`,
+                  }}
+                />
+              ) : (
+                /* Fallback: Tanda Tangan Simulasi (bila pimpinan belum mengunggah PNG) */
+                <div className="relative z-10 w-44 h-16 flex items-center justify-center pointer-events-none select-none">
+                  <svg viewBox="0 0 200 80" className="w-full h-full text-blue-900 fill-none stroke-current stroke-2">
+                    <path d="M 15 50 Q 40 10 70 45 T 120 30 T 160 55 Q 175 40 190 20" />
+                    <path d="M 35 30 Q 60 70 85 25 Q 110 65 140 40" strokeWidth="1.5" />
+                    <path d="M 20 60 L 180 62" strokeWidth="1" strokeDasharray="3 3" />
+                  </svg>
+                </div>
+              )}
             </div>
 
             <p className="font-bold underline text-gray-900">{signedBy}</p>

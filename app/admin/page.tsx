@@ -25,6 +25,7 @@ import {
   Layers,
   GraduationCap,
   Building2,
+  PenTool,
   ChevronLeft
 } from 'lucide-react';
 import {
@@ -36,6 +37,7 @@ import {
   resetToDefaultMockData
 } from '@/lib/letter-service';
 import OfficialLetterView from '@/components/letter/OfficialLetterView';
+import SignatureManager from '@/components/letter/SignatureManager';
 import Button from '@/components/ui/Button';
 
 export default function AdminPortalPage() {
@@ -49,6 +51,8 @@ export default function AdminPortalPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [showSignatureManager, setShowSignatureManager] = useState(false);
+  const [signatureVersion, setSignatureVersion] = useState(0);
 
   const loadData = () => {
     setRequests(getAllRequests());
@@ -290,6 +294,19 @@ export default function AdminPortalPage() {
                 2. Dekan / Pimpinan (L2)
               </button>
             </div>
+
+            {role === 'pimpinan' && (
+              <button
+                type="button"
+                onClick={() => setShowSignatureManager(true)}
+                className="px-3 py-1.5 bg-purple-950/50 hover:bg-purple-900/70 text-purple-200 hover:text-white rounded-lg text-xs font-semibold border border-purple-700/50 transition-colors flex items-center gap-1.5"
+                title="Kelola tanda tangan digital pimpinan"
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Kelola Tanda Tangan</span>
+                <span className="sm:hidden">TTD</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -689,6 +706,7 @@ export default function AdminPortalPage() {
 
                   <div className="p-2 sm:p-4 max-h-[580px] overflow-y-auto bg-gray-200/50">
                     <OfficialLetterView
+                      key={signatureVersion}
                       request={selectedRequest}
                       showPrintButton={false}
                     />
@@ -738,6 +756,52 @@ export default function AdminPortalPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Kelola Tanda Tangan Digital Pimpinan */}
+      {showSignatureManager && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="bg-slate-50 text-slate-900 rounded-2xl shadow-2xl max-w-lg w-full my-6 overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-purple-600 flex items-center justify-center text-white">
+                  <PenTool className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white">
+                    Kelola Tanda Tangan Pimpinan
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Tanda tangan otomatis ditempelkan ke seluruh surat yang disahkan
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSignatureManager(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <SignatureManager
+                signerName={selectedRequest?.signedBy || 'Adi Mahmud Jaya Marindra, S.T., M.Eng., Ph.D.'}
+                signerNip={selectedRequest?.signedNip || '198506152014041001'}
+                onChange={() => setSignatureVersion((v) => v + 1)}
+              />
+            </div>
+
+            <div className="bg-white border-t border-gray-200 p-4 flex justify-end flex-shrink-0">
+              <button
+                onClick={() => setShowSignatureManager(false)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors"
+              >
+                Selesai
+              </button>
             </div>
           </div>
         </div>
