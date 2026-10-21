@@ -1,0 +1,144 @@
+/* ============================================================
+   Lembar dokumen resmi FSTI (pratinjau, cetak, dan unduh PDF)
+   Semua gaya di bawah memakai padding-block agar tata letaknya
+   stabil walau pembungkusnya bersifat deflasi (offsetWidth < rect.width).
+   ============================================================ */
+
+/* Bingkai zoom: hanya transformasi yang diterapkan, jadi lebar
+   aslinya tetap utuh dan kelas responsif (sm:*) menghitung dengan benar */
+.letter-zoom-frame {
+  inline-size: 100%;
+}
+
+.letter-zoom-frame .official-letter-sheet {
+  max-inline-size: 820px;
+}
+
+/* Permukaan pratinjau: hak milik halaman (bukan milik slider yang di-scale) */
+.letter-preview-surface {
+  inline-size: 100%;
+}
+
+/* Pembaca dokumen: elemen fixed-nya sendiri jadi containing block,
+   sehingga lebar 100% dihitung dari viewport, bukan dari area konten yang terpotong */
+.letter-reader {
+  position: fixed;
+  inset: 0;
+}
+
+/* Pratinjau yang ditanam di dalam panel (halaman admin/dosen):
+   tinggi mengikuti isi dokumen, bukan memenuhi panel, supaya tidak ada
+   area kosong panjang di bawah surat */
+.letter-preview-embed {
+  display: block;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* ---------- Layar kecil: dokumen tetap terbaca tanpa geser samping ---------- */
+@media (max-width: 640px) {
+  .letter-zoom-frame .official-letter-sheet {
+    max-inline-size: 100%;
+  }
+}
+
+/* ---------- Cetak: hanya lembar surat yang dirender ---------- */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 18mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Sembunyikan seluruh aplikasi, lalu tampilkan lembar surat saja.
+     visibility (bukan display) supaya jalur dokumen tetap punya tata letak. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Isi aplikasi di belakang pembaca surat harus benar-benar dilepas dari aliran.
+     Kalau hanya disembunyikan dengan visibility, section/header/footer tetap
+     memakan tinggi (mis. 1780px) sehingga hasil cetak meluber ke halaman
+     kedua dan ketiga. Pengecualian `:not(:has(.letter-reader))` penting:
+     di halaman tracking, pembaca surat berada DI DALAM <main>, jadi <main>
+     tidak boleh ikut dihilangkan. */
+  main > section,
+  main > *:not(:has(.letter-reader)):not(.letter-reader),
+  body > div > nav,
+  body > div > header,
+  body > div > footer {
+    display: none !important;
+  }
+
+  .no-print,
+  .letter-preview-toolbar {
+    display: none !important;
+  }
+
+  .letter-preview-surface {
+    background: #ffffff !important;
+    padding-block: 0 !important;
+    overflow: visible !important;
+  }
+
+  .letter-zoom-frame {
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  /* Pembungkus harus netral supaya tidak ada containing block / ruang sisa
+     yang membuat halaman kedua kosong */
+  .letter-reader,
+  .letter-preview-surface,
+  .letter-zoom-frame,
+  .print-preview,
+  body > * {
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  /* Hanya jalur dokumen yang terlihat, dan hanya lembar surat yang dialirkan
+     (flow normal, bukan absolut), sehingga hasil cetak selalu satu halaman rapi */
+  .letter-reader,
+  .letter-reader *,
+  .print-preview,
+  .print-preview * {
+    visibility: hidden !important;
+  }
+
+  .official-letter-sheet,
+  .official-letter-sheet * {
+    visibility: visible !important;
+  }
+
+  .official-letter-sheet {
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+    min-block-size: 0 !important;
+    margin: 0 !important;
+    padding: 0.8rem 1.2rem !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

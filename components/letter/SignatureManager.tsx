@@ -56,13 +56,19 @@ export default function SignatureManager({
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
-    const sig = getSignature();
-    setSignature(sig);
-    if (sig) {
-      setWidthPercent(sig.widthPercent ?? DEFAULT_SIGNATURE_LAYOUT.widthPercent);
-      setOffsetXPercent(sig.offsetXPercent ?? DEFAULT_SIGNATURE_LAYOUT.offsetXPercent);
-      setOffsetYPercent(sig.offsetYPercent ?? DEFAULT_SIGNATURE_LAYOUT.offsetYPercent);
-    }
+    let active = true;
+    getSignature().then((sig) => {
+      if (!active) return;
+      setSignature(sig);
+      if (sig) {
+        setWidthPercent(sig.widthPercent ?? DEFAULT_SIGNATURE_LAYOUT.widthPercent);
+        setOffsetXPercent(sig.offsetXPercent ?? DEFAULT_SIGNATURE_LAYOUT.offsetXPercent);
+        setOffsetYPercent(sig.offsetYPercent ?? DEFAULT_SIGNATURE_LAYOUT.offsetYPercent);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const notify = (msg: string) => {
@@ -90,21 +96,27 @@ export default function SignatureManager({
         setError('Gagal membaca berkas tanda tangan.');
         return;
       }
-      const saved = saveSignature({
-        dataUrl,
-        fileName: file.name,
-        size: file.size,
-        uploadedAt: new Date().toISOString(),
-        signerName,
-        signerNip,
-        widthPercent,
-        offsetXPercent,
-        offsetYPercent,
-      });
-      setSignature(saved);
-      setHasChanges(false);
-      onChange?.(saved);
-      notify('Tanda tangan berhasil disimpan. Otomatis ditempelkan pada seluruh surat.');
+      void (async () => {
+        try {
+          const saved = await saveSignature({
+            dataUrl,
+            fileName: file.name,
+            size: file.size,
+            uploadedAt: new Date().toISOString(),
+            signerName,
+            signerNip,
+            widthPercent,
+            offsetXPercent,
+            offsetYPercent,
+          });
+          setSignature(saved);
+          setHasChanges(false);
+          onChange?.(saved);
+          notify('Tanda tangan berhasil disimpan ke database. Otomatis ditempelkan pada seluruh surat.');
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : 'Gagal menyimpan tanda tangan.');
+        }
+      })();
     };
     reader.onerror = () => setError('Terjadi kesalahan saat membaca berkas.');
     reader.readAsDataURL(file);
@@ -127,18 +139,22 @@ export default function SignatureManager({
     setHasChanges(true);
   };
 
-  const handleSaveLayout = () => {
+  const handleSaveLayout = async () => {
     if (!signature) return;
-    const saved = saveSignature({
-      ...signature,
-      widthPercent,
-      offsetXPercent,
-      offsetYPercent,
-    });
-    setSignature(saved);
-    setHasChanges(false);
-    onChange?.(saved);
-    notify('Pengaturan posisi & ukuran tanda tangan berhasil disimpan.');
+    try {
+      const saved = await saveSignature({
+        ...signature,
+        widthPercent,
+        offsetXPercent,
+        offsetYPercent,
+      });
+      setSignature(saved);
+      setHasChanges(false);
+      onChange?.(saved);
+      notify('Pengaturan posisi & ukuran tanda tangan berhasil disimpan.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal menyimpan pengaturan tanda tangan.');
+    }
   };
 
   const handleResetLayout = () => {
@@ -148,16 +164,20 @@ export default function SignatureManager({
     setHasChanges(true);
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     if (!confirm('Hapus tanda tangan tersimpan? Surat berikutnya akan memakai tanda tangan contoh sampai Anda mengunggah ulang.')) {
       return;
     }
-    removeSignature();
-    setSignature(null);
-    setHasChanges(false);
-    onChange?.(null);
-    setError(null);
-    notify('Tanda tangan berhasil dihapus.');
+    try {
+      await removeSignature();
+      setSignature(null);
+      setHasChanges(false);
+      onChange?.(null);
+      setError(null);
+      notify('Tanda tangan berhasil dihapus dari database.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal menghapus tanda tangan.');
+    }
   };
 
   const formatSize = (bytes: number) => {
@@ -410,7 +430,7 @@ export default function SignatureManager({
         <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-slate-400" />
         <span>
           Gunakan PNG beresolusi tinggi agar hasil cetak tajam. Atur ukuran & posisi di atas,
-          lalu klik <strong>Simpan Pengaturan</strong> — perubahan tampil langsung pada pratinjau surat.
+          lalu klik <strong>Simpan Pengaturan</strong>; perubahan tampil langsung pada pratinjau surat.
         </span>
       </div>
     </div>

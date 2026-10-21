@@ -6,9 +6,9 @@ type DividerType = "wave" | "curve" | "slant" | "triangle" | "zigzag" | "tilt";
 
 interface SectionDividerProps {
     type?: DividerType;
-    /** Color of the SVG shape fill — matches the NEXT section's background */
+    /** Color of the SVG shape fill: matches the NEXT section's background */
     fillColor?: string;
-    /** Background color behind the SVG — matches the PREVIOUS section's background */
+    /** Background color behind the SVG: matches the PREVIOUS section's background */
     bgColor?: string;
     /** Flip vertically */
     flip?: boolean;

@@ -50,13 +50,11 @@ layanan-fsti/
 │   ├── globals.css              # Stylesheet CSS global
 │   ├── animation.css            # Stylesheet animasi
 │   ├── layout.tsx               # Komponen layout utama
-│   └── page.tsx                 # Halaman beranda
+│   └── page.tsx                 # Halaman utama (katalog layanan administrasi)
 ├── components/                  # Komponen React
 │   ├── layout/                  # Komponen layout (Navbar, Footer,dll)
 │   ├── ui/                      # Komponen UI (Button, ServiceCard, dll)
-│   ├── utils/                   # Komponen utilitas
-│   ├── ClientWrapper.tsx        # Komponen wrapper sisi klien
-│   └── HomePage.tsx             # Komponen halaman beranda
+│   └── utils/                   # Komponen utilitas
 ├── lib/                         # Fungsi dan hook utilitas
 │   ├── i18n/                    # Internasionalisasi
 │   │   ├── LanguageContext.tsx  # Provider konteks bahasa

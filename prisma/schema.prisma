@@ -1,0 +1,179 @@
+// Rencana ERD: docs/db.md (F1)
+// PostgreSQL lokal: postgresql://postgres:Betran@localhost:5432/fsti_layanan
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  tendik
+  pimpinan
+}
+
+enum RequestStatus {
+  diajukan
+  diverifikasi_tendik
+  menunggu_pimpinan
+  siap_diunduh
+  ditolak
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  name         String    @db.VarChar(255)
+  role         UserRole
+  nip          String?   @db.VarChar(32)
+  passwordHash String    @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  verifiesRequests   LetterRequest[]  @relation("VerifiedBy")
+  signsRequests      LetterRequest[]  @relation("SignedBy")
+  signatures         Signature[]
+  statusHistories    LetterStatusHistory[]
+
+  @@map("users")
+}
+
+model Student {
+  id           String    @id @default(uuid()) @db.Uuid
+  nim          String    @unique @db.VarChar(20)
+  fullName     String    @map("full_name") @db.VarChar(255)
+  studyProgram String    @map("study_program") @db.VarChar(120)
+  degree       String    @default("S1") @db.VarChar(10)
+  phone        String?   @db.VarChar(25)
+  email        String?   @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  requests LetterRequest[]
+
+  @@map("students")
+}
+
+model LetterType {
+  id            String  @id @default(uuid()) @db.Uuid
+  code          String  @unique @db.VarChar(64)
+  name          String  @db.VarChar(255)
+  ticketPrefix  String  @map("ticket_prefix") @db.VarChar(32)
+  isActive      Boolean @default(true) @map("is_active")
+
+  requests LetterRequest[]
+
+  @@map("letter_types")
+}
+
+model LetterRequest {
+  id             String        @id @default(uuid()) @db.Uuid
+  ticketNumber   String        @unique @map("ticket_number") @db.VarChar(64)
+  studentId      String        @map("student_id") @db.Uuid
+  letterTypeId   String        @map("letter_type_id") @db.Uuid
+  status         RequestStatus @default(diajukan)
+  statusLabel    String        @map("status_label") @db.VarChar(64)
+  semester       String        @db.VarChar(32)
+  academicYear   String        @map("academic_year") @db.VarChar(16)
+  purpose        String        @db.Text
+  extraData      Json          @default("{}") @map("extra_data")
+  letterNumber   String?       @map("letter_number") @db.VarChar(64)
+  letterDate    DateTime?     @map("letter_date") @db.Date
+  verifiedById   String?       @map("verified_by_id") @db.Uuid
+  signedById     String?       @map("signed_by_id") @db.Uuid
+  signedPosition String?       @map("signed_position") @db.VarChar(255)
+  adminNotes     String?       @map("admin_notes") @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  student        Student               @relation(fields: [studentId], references: [id])
+  letterType     LetterType             @relation(fields: [letterTypeId], references: [id])
+  verifiedBy     User?                  @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  signedBy       User?                  @relation("SignedBy", fields: [signedById], references: [id])
+  statusHistories LetterStatusHistory[]
+  attachments    Attachment[]
+  survey        Survey?
+
+  @@index([status])
+  @@index([studentId])
+  @@index([createdAt(sort: Desc)])
+  @@map("letter_requests")
+}
+
+model LetterStatusHistory {
+  id          String         @id @default(uuid()) @db.Uuid
+  requestId   String         @map("request_id") @db.Uuid
+  fromStatus  RequestStatus? @map("from_status")
+  toStatus    RequestStatus  @map("to_status")
+  actorId     String?        @map("actor_id") @db.Uuid
+  note        String?        @db.Text
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  request   LetterRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor     User?         @relation(fields: [actorId], references: [id])
+
+  @@index([requestId, createdAt(sort: Desc)])
+  @@map("letter_status_histories")
+}
+
+model Attachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  requestId  String   @map("request_id") @db.Uuid
+  fileName   String   @map("file_name") @db.VarChar(255)
+  fileUrl    String?  @map("file_url") @db.Text
+  fileSize   BigInt?  @map("file_size")
+  mimeType   String?  @map("mime_type") @db.VarChar(100)
+  kind       String?  @db.VarChar(64)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  request LetterRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model Signature {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  fileUrl         String?  @map("file_url") @db.Text
+  dataUrl         String?  @map("data_url") @db.Text
+  fileName        String   @map("file_name") @db.VarChar(255)
+  fileSize        Int?     @map("file_size")
+  widthPercent    Int      @default(55) @map("width_percent")
+  offsetXPercent  Int      @default(0) @map("offset_x_percent")
+  offsetYPercent  Int      @default(0) @map("offset_y_percent")
+  isActive        Boolean  @default(false) @map("is_active")
+  signerName      String?  @map("signer_name") @db.VarChar(255)
+  signerNip       String?  @map("signer_nip") @db.VarChar(32)
+  uploadedAt      DateTime @default(now()) @map("uploaded_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("signatures")
+}
+
+model Survey {
+  id           String   @id @default(uuid()) @db.Uuid
+  requestId    String   @unique @map("request_id") @db.Uuid
+  rating       Int
+  helpfulness  String   @db.VarChar(64)
+  feedback     String?  @db.Text
+  completedAt  DateTime @default(now()) @map("completed_at") @db.Timestamptz
+
+  request LetterRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("surveys")
+}
+
+model AccessSurvey {
+  id                  String   @id @default(uuid()) @db.Uuid
+  rating              Int
+  helpfulness         String   @db.VarChar(64)
+  satisfactionAspects String[] @map("satisfaction_aspects")
+  feedback            String?  @db.Text
+  submittedAt         DateTime @default(now()) @map("submitted_at") @db.Timestamptz
+
+  @@map("access_surveys")
+}

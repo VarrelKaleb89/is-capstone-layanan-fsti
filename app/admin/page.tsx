@@ -18,7 +18,7 @@ import {
   Printer,
   RotateCcw,
   Sparkles,
-  ArrowRight,
+  Download,
   Lock,
   ChevronRight,
   Calendar,
@@ -33,47 +33,144 @@ import {
   LetterStatus,
   getAllRequests,
   updateLetterStatus,
+  updateLetterNumber,
   getStatusBadge,
   resetToDefaultMockData
 } from '@/lib/letter-service';
 import OfficialLetterView from '@/components/letter/OfficialLetterView';
 import SignatureManager from '@/components/letter/SignatureManager';
 import Button from '@/components/ui/Button';
+import { formatPeriodeIndo, formatTanggalIndo } from '@/lib/kp-utils';
 
 export default function AdminPortalPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [loginRole, setLoginRole] = useState<'tendik' | 'pimpinan'>('tendik');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [requests, setRequests] = useState<LetterRequest[]>([]);
   const [role, setRole] = useState<'tendik' | 'pimpinan'>('tendik');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<LetterRequest | null>(null);
+  const [editLetterNumber, setEditLetterNumber] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
   const [showSignatureManager, setShowSignatureManager] = useState(false);
   const [signatureVersion, setSignatureVersion] = useState(0);
 
-  const loadData = () => {
-    setRequests(getAllRequests());
+  const handleSelectRequest = (req: LetterRequest | null) => {
+    setSelectedRequest(req);
+    setEditLetterNumber(req?.letterNumber || '');
+    setShowRejectInput(false);
   };
 
+  const handleSaveLetterNumber = async () => {
+    if (!selectedRequest) return;
+    try {
+      const updated = await updateLetterNumber(selectedRequest.id, editLetterNumber);
+      if (updated) {
+        void loadData();
+        handleSelectRequest(updated);
+        showNotification(`Nomor surat untuk tiket ${updated.ticketNumber} berhasil diperbarui: ${editLetterNumber}`);
+      }
+    } catch (err: unknown) {
+      handleMutationError(err);
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      setRequests(await getAllRequests());
+    } catch (err: unknown) {
+      // 401 = sesi hilang/kedaluwarsa → kembali ke layar login.
+      if (err instanceof Error && err.message.includes('Tidak terautentikasi')) {
+        setIsAuthenticated(false);
+        setRole('tendik');
+        return;
+      }
+      console.error('Gagal memuat permohonan:', err);
+    }
+  };
+
+  // Pulihkan sesi dari cookie saat halaman dibuka / di-reload.
   useEffect(() => {
-    loadData();
+    void (async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = (await res.json()) as { user: { role: 'tendik' | 'pimpinan' } | null };
+        if (data.user) {
+          setRole(data.user.role);
+          setIsAuthenticated(true);
+          // Default landing: langsung ke antrean tugas sesi peran masing-masing
+          setFilterStatus('perlu_tindakan');
+        }
+      } catch {
+        /* tanpa sesi: tetap di layar login */
+      } finally {
+        setAuthChecked(true);
+      }
+    })();
   }, []);
 
-  const handleLogin = (selectedRole: 'tendik' | 'pimpinan') => {
-    setRole(selectedRole);
-    setIsAuthenticated(true);
-    showNotification(`Berhasil masuk sebagai ${selectedRole === 'tendik' ? 'Staf Tendik (Verifikator L1)' : 'Dekan / Pimpinan (Approver L2)'}`);
+  useEffect(() => {
+    if (isAuthenticated) void loadData();
+  }, [isAuthenticated]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setIsLoggingIn(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+      const data = (await res.json()) as {
+        user?: { role: 'tendik' | 'pimpinan'; name: string };
+        error?: string;
+      };
+      if (!res.ok || !data.user) {
+        throw new Error(data.error || 'Login gagal.');
+      }
+      setRole(data.user.role);
+      setIsAuthenticated(true);
+      // Langsung mendarat di "Perlu Tindakan Saya" — antrean tugas peran ini
+      setFilterStatus('perlu_tindakan');
+      setLoginPassword('');
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : 'Login gagal.');
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
-  const handleResetData = () => {
-    if (confirm('Kembalikan data permohonan ke data awal simulasi?')) {
-      const reset = resetToDefaultMockData();
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      /* abaikan */
+    }
+    setIsAuthenticated(false);
+    setRole('tendik');
+    setSelectedRequest(null);
+    setRequests([]);
+  };
+
+  const handleResetData = async () => {
+    if (!confirm('Kembalikan data permohonan ke data awal simulasi?')) {
+      return;
+    }
+    try {
+      const reset = await resetToDefaultMockData();
       setRequests(reset);
-      setSelectedRequest(null);
+      handleSelectRequest(null);
       showNotification('Data permohonan berhasil direset ke data simulasi.');
+    } catch (err: unknown) {
+      showNotification(err instanceof Error ? `Reset gagal: ${err.message}` : 'Reset gagal.');
     }
   };
 
@@ -82,46 +179,70 @@ export default function AdminPortalPage() {
     setTimeout(() => setActionSuccessMsg(null), 3500);
   };
 
+  /** Jika error sesi (401), paksa kembali ke layar login. */
+  const handleMutationError = (err: unknown) => {
+    if (err instanceof Error && err.message.includes('Tidak terautentikasi')) {
+      setIsAuthenticated(false);
+      setRole('tendik');
+      return;
+    }
+    showNotification(err instanceof Error ? `Aksi gagal: ${err.message}` : 'Aksi gagal.');
+  };
+
   // Tendik Action: Verify & Forward to Leader
-  const handleTendikVerify = (id: string) => {
-    const updated = updateLetterStatus(id, 'menunggu_pimpinan', {
-      adminNotes: 'Telah diverifikasi oleh staf tendik, berkas lengkap dan siap disahkan pimpinan.',
-    });
-    if (updated) {
-      loadData();
-      setSelectedRequest(updated);
-      showNotification(`Permohonan ${updated.ticketNumber} berhasil diverifikasi dan dialirkan ke Dekan/Pimpinan.`);
+  const handleTendikVerify = async (id: string) => {
+    if (role !== 'tendik') return;
+    try {
+      const updated = await updateLetterStatus(id, 'menunggu_pimpinan', {
+        adminNotes: 'Telah diverifikasi oleh staf tendik, berkas lengkap dan siap disahkan pimpinan.',
+      });
+      if (updated) {
+        void loadData();
+        handleSelectRequest(updated);
+        showNotification(`Permohonan ${updated.ticketNumber} berhasil diverifikasi dan dialirkan ke Dekan/Pimpinan.`);
+      }
+    } catch (err: unknown) {
+      handleMutationError(err);
     }
   };
 
   // Pimpinan Action: Sign and Publish
-  const handlePimpinanApprove = (id: string) => {
-    const updated = updateLetterStatus(id, 'siap_diunduh', {
-      adminNotes: 'Surat resmi telah disahkan dan ditandatangani Dekan FSTI. Dokumen terkunci dan siap diunduh mahasiswa.',
-    });
-    if (updated) {
-      loadData();
-      setSelectedRequest(updated);
-      showNotification(`Surat resmi ${updated.ticketNumber} telah disahkan dan berstatus SIAP DIUNDUH.`);
+  const handlePimpinanApprove = async (id: string) => {
+    if (role !== 'pimpinan') return;
+    try {
+      const updated = await updateLetterStatus(id, 'siap_diunduh', {
+        adminNotes: 'Surat resmi telah disahkan dan ditandatangani Dekan FSTI. Dokumen terkunci dan siap diunduh mahasiswa.',
+      });
+      if (updated) {
+        void loadData();
+        handleSelectRequest(updated);
+        showNotification(`Surat resmi ${updated.ticketNumber} telah disahkan dan berstatus SIAP DIUNDUH.`);
+      }
+    } catch (err: unknown) {
+      handleMutationError(err);
     }
   };
 
   // Reject / Request Revision Action
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
     if (!rejectReason.trim()) {
       alert('Mohon cantumkan catatan perbaikan atau alasan penolakan.');
       return;
     }
 
-    const updated = updateLetterStatus(id, 'ditolak', {
-      adminNotes: `Catatan perbaikan (${role === 'tendik' ? 'Tendik' : 'Pimpinan'}): ${rejectReason.trim()}`,
-    });
-    if (updated) {
-      loadData();
-      setSelectedRequest(updated);
-      setShowRejectInput(false);
-      setRejectReason('');
-      showNotification(`Status permohonan ${updated.ticketNumber} diperbarui menjadi PERLU REVISI.`);
+    try {
+      const updated = await updateLetterStatus(id, 'ditolak', {
+        adminNotes: `Catatan perbaikan (${role === 'tendik' ? 'Tendik' : 'Pimpinan'}): ${rejectReason.trim()}`,
+      });
+      if (updated) {
+        void loadData();
+        handleSelectRequest(updated);
+        setShowRejectInput(false);
+        setRejectReason('');
+        showNotification(`Status permohonan ${updated.ticketNumber} diperbarui menjadi PERLU REVISI.`);
+      }
+    } catch (err: unknown) {
+      handleMutationError(err);
     }
   };
 
@@ -134,7 +255,17 @@ export default function AdminPortalPage() {
 
     if (!matchesSearch) return false;
 
-    if (filterStatus === 'all') return true;
+    // Pimpinan strict isolation: Pimpinan cannot see raw submissions ('diajukan') before Tendik processes them
+    if (role === 'pimpinan' && r.status === 'diajukan') {
+      return false;
+    }
+
+    if (filterStatus === 'all') {
+      if (role === 'pimpinan') {
+        return r.status === 'menunggu_pimpinan' || r.status === 'siap_diunduh';
+      }
+      return true;
+    }
     if (filterStatus === 'perlu_tindakan') {
       if (role === 'tendik') return r.status === 'diajukan';
       if (role === 'pimpinan') return r.status === 'menunggu_pimpinan';
@@ -148,6 +279,17 @@ export default function AdminPortalPage() {
   const pendingPimpinan = requests.filter((r) => r.status === 'menunggu_pimpinan').length;
   const completedCount = requests.filter((r) => r.status === 'siap_diunduh').length;
   const rejectedCount = requests.filter((r) => r.status === 'ditolak').length;
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-400 flex items-center justify-center font-sans">
+        <div className="flex items-center gap-3 text-sm">
+          <div className="w-5 h-5 border-2 border-slate-600 border-t-primary-500 rounded-full animate-spin"></div>
+          Memeriksa sesi…
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -172,54 +314,70 @@ export default function AdminPortalPage() {
               Login Admin & Pimpinan
             </h1>
             <p className="text-xs text-slate-400">
-              Akses khusus Tenaga Kependidikan (Tendik) dan Pimpinan Fakultas Sains dan Teknologi Informasi
+              Masuk dengan akun Tenaga Kependidikan (Tendik) atau Pimpinan Fakultas Sains dan Teknologi Informasi
             </p>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-5">
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider text-center">
-                Pilih Akses Cepat (Mode Demo / Pengujian):
-              </p>
-              
-              <button
-                type="button"
-                onClick={() => handleLogin('tendik')}
-                className="w-full p-4 rounded-xl border border-blue-500/40 bg-blue-950/40 hover:bg-blue-900/50 text-left transition-all flex items-center justify-between group shadow-sm"
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                    <span className="font-bold text-sm text-white group-hover:text-blue-300">
-                      1. Staf Tendik (Bu Desy)
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 pl-4">
-                    Verifikator Lapis 1 · Pemeriksaan data pemohon & pembuatan draft
-                  </p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleLogin('pimpinan')}
-                className="w-full p-4 rounded-xl border border-purple-500/40 bg-purple-950/40 hover:bg-purple-900/50 text-left transition-all flex items-center justify-between group shadow-sm"
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-                    <span className="font-bold text-sm text-white group-hover:text-purple-300">
-                      2. Dekan / Pimpinan FSTI
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 pl-4">
-                    Approver Lapis 2 · Pembubuhan TTD & Pengesahan Surat Resmi
-                  </p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-purple-400 group-hover:translate-x-1 transition-transform" />
-              </button>
+          <form
+            onSubmit={handleLogin}
+            className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-5"
+          >
+            <div className="space-y-1.5">
+              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-300">
+                Email
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                required
+                autoComplete="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="nama@fsti.itk.ac.id"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+              />
             </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-300">
+                Password
+              </label>
+              <input
+                id="login-password"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+              />
+            </div>
+
+            {loginError && (
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-950/50 border border-rose-800/60 text-rose-200 text-xs">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary-600 hover:bg-primary-500 disabled:opacity-60 text-white text-sm font-bold transition-colors shadow-lg"
+            >
+              {isLoggingIn ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+                  Memverifikasi…
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  Masuk
+                </>
+              )}
+            </button>
 
             <div className="pt-3 border-t border-slate-800 text-center">
               <Link
@@ -230,7 +388,7 @@ export default function AdminPortalPage() {
                 <span>Kembali ke Portal Publik Mahasiswa</span>
               </Link>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     );
@@ -266,33 +424,14 @@ export default function AdminPortalPage() {
             </div>
           </div>
 
-          {/* Role Switcher & Back to Portal */}
+          {/* Info Peran Sesi & Aksi */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* Simulation Role Selector */}
-            <div className="bg-slate-800/90 p-1 rounded-xl border border-slate-700 flex items-center text-xs">
-              <span className="px-2 text-slate-400 font-medium hidden md:inline">Peran:</span>
-              <button
-                type="button"
-                onClick={() => setRole('tendik')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                  role === 'tendik'
-                    ? 'bg-blue-600 text-white shadow'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                1. Staf Tendik (L1)
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('pimpinan')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                  role === 'pimpinan'
-                    ? 'bg-purple-600 text-white shadow'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                2. Dekan / Pimpinan (L2)
-              </button>
+            <div className="bg-slate-800/90 px-3 py-2 rounded-xl border border-slate-700 flex items-center gap-2 text-xs">
+              <ShieldCheck className={`w-3.5 h-3.5 ${role === 'tendik' ? 'text-blue-400' : 'text-purple-400'}`} />
+              <span className="text-slate-400 hidden md:inline">Sesi aktif:</span>
+              <span className={`font-bold ${role === 'tendik' ? 'text-blue-300' : 'text-purple-300'}`}>
+                {role === 'tendik' ? 'Staf Tendik (L1)' : 'Dekan / Pimpinan (L2)'}
+              </span>
             </div>
 
             {role === 'pimpinan' && (
@@ -310,7 +449,7 @@ export default function AdminPortalPage() {
 
             <button
               type="button"
-              onClick={() => setIsAuthenticated(false)}
+              onClick={() => void handleLogout()}
               className="px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-200 rounded-lg text-xs font-medium border border-rose-800/40 transition-colors"
               title="Keluar dari Panel Admin"
             >
@@ -518,7 +657,7 @@ export default function AdminPortalPage() {
                         <td className="py-3.5 px-4 text-right">
                           <button
                             onClick={() => {
-                              setSelectedRequest(item);
+                              handleSelectRequest(item);
                               setShowRejectInput(false);
                             }}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
@@ -567,7 +706,7 @@ export default function AdminPortalPage() {
                 </div>
               </div>
               <button
-                onClick={() => setSelectedRequest(null)}
+                onClick={() => handleSelectRequest(null)}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -578,6 +717,36 @@ export default function AdminPortalPage() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50">
               {/* Kolom Kiri: Ringkasan Verifikasi */}
               <div className="lg:col-span-4 space-y-4 text-xs">
+                {/* Pengaturan Nomor Surat Unik per Tiket */}
+                <div className="bg-white p-4 rounded-xl border border-primary-200 shadow-sm space-y-2.5 bg-gradient-to-br from-primary-50/40 to-white">
+                  <h4 className="font-bold text-primary-950 border-b border-primary-100 pb-2 text-sm flex items-center justify-between">
+                    <span>Nomor Surat Resmi</span>
+                    <span className="text-[10px] font-mono bg-primary-600 text-white px-2 py-0.5 rounded">Unik per Tiket</span>
+                  </h4>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-gray-700">Format & Nomor Surat:</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editLetterNumber}
+                        onChange={(e) => setEditLetterNumber(e.target.value)}
+                        placeholder="Contoh: 189/IT10.FSTI/KM/2026"
+                        className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono text-gray-900 bg-white focus:ring-2 focus:ring-primary-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveLetterNumber}
+                        className="px-3 py-1.5 bg-primary-700 hover:bg-primary-800 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                      >
+                        Simpan
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-gray-500">
+                      Staf Tendik dapat menyesuaikan nomor surat khusus untuk tiket ini agar berbeda tiap permohonan.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Data Mahasiswa */}
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-2.5">
                   <h4 className="font-bold text-gray-900 border-b pb-2 text-sm">
@@ -624,6 +793,67 @@ export default function AdminPortalPage() {
                       </div>
                     </div>
                   )}
+
+                  {selectedRequest.serviceType === 'surat-pengantar-kp' && selectedRequest.kpData && (
+                    <div className="pt-2 border-t border-gray-100 bg-amber-50/70 p-2.5 rounded-lg space-y-1.5">
+                      <span className="font-bold text-amber-950 block text-[11px] uppercase tracking-wide">
+                        Rincian Pendaftaran KP
+                      </span>
+                      <div className="text-[11px] text-amber-900 space-y-0.5">
+                        <span className="block">Tipe: <strong>{selectedRequest.kpData.registrationType === 'kelompok' ? 'Kelompok (2 orang)' : 'Individu'}</strong></span>
+                        <span className="block">Jurusan: <strong>{selectedRequest.kpData.jurusan}</strong></span>
+                        <span className="block">SKS Lulus: <strong>{selectedRequest.kpData.sksLulus}</strong></span>
+                        {selectedRequest.kpData.registrationType === 'kelompok' && (
+                          <span className="block">Pemohon 2: <strong>{selectedRequest.kpData.pemohon2Nama} ({selectedRequest.kpData.pemohon2Nim})</strong></span>
+                        )}
+                        <span className="block pt-1 border-t border-amber-200/60">Mitra: <strong>{selectedRequest.kpData.mitraNama}</strong></span>
+                        <span className="block">Alamat: <strong>{selectedRequest.kpData.mitraAlamat}</strong></span>
+                        <span className="block">Durasi: <strong>{selectedRequest.kpData.durasiBulan} bulan</strong></span>
+                        <span className="block">Periode: <strong>{formatPeriodeIndo(selectedRequest.kpData.periodeMulai, selectedRequest.kpData.periodeSelesai)}</strong></span>
+                        {selectedRequest.kpData.tenggatBalasan && (
+                          <span className="block">Tenggat balasan mitra: <strong>{formatTanggalIndo(selectedRequest.kpData.tenggatBalasan)}</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRequest.serviceType === 'kp-setelah-diterima' && selectedRequest.kpDataAccepted && (
+                    <div className="pt-2 border-t border-gray-100 bg-blue-50/70 p-2.5 rounded-lg space-y-1.5">
+                      <span className="font-bold text-blue-950 block text-[11px] uppercase tracking-wide">
+                        Rincian Pendaftaran KP (Setelah Diterima)
+                      </span>
+                      <div className="text-[11px] text-blue-900 space-y-0.5">
+                        {selectedRequest.kpDataAccepted.pemohon2Nama && (
+                          <span className="block">Pemohon 2: <strong>{selectedRequest.kpDataAccepted.pemohon2Nama} ({selectedRequest.kpDataAccepted.pemohon2Nim})</strong></span>
+                        )}
+                        <span className="block">Mitra: <strong>{selectedRequest.kpDataAccepted.mitraNama}</strong></span>
+                        <span className="block">Alamat: <strong>{selectedRequest.kpDataAccepted.mitraAlamat}</strong></span>
+                        <span className="block">Durasi: <strong>{selectedRequest.kpDataAccepted.durasiBulan} bulan</strong></span>
+                        <span className="block">Periode: <strong>{formatPeriodeIndo(selectedRequest.kpDataAccepted.periodeMulai, selectedRequest.kpDataAccepted.periodeSelesai)}</strong></span>
+                        <span className="block pt-1 border-t border-blue-200/60">No. surat balasan: <strong>{selectedRequest.kpDataAccepted.suratBalasanNomor}</strong></span>
+                        {selectedRequest.kpDataAccepted.suratBalasanTanggal && (
+                          <span className="block">Tgl. surat balasan: <strong>{formatTanggalIndo(selectedRequest.kpDataAccepted.suratBalasanTanggal)}</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedRequest.serviceType === 'surat-aktif-studi' && selectedRequest.aktifStudiData && (
+                    <div className="pt-2 border-t border-gray-100 bg-emerald-50/70 p-2.5 rounded-lg space-y-1.5">
+                      <span className="font-bold text-emerald-950 block text-[11px] uppercase tracking-wide">
+                        Rincian Permohonan Surat Aktif Studi
+                      </span>
+                      <div className="text-[11px] text-emerald-900 space-y-0.5">
+                        <span className="block">Jurusan: <strong>{selectedRequest.aktifStudiData.jurusan}</strong></span>
+                        <span className="block">Angkatan: <strong>{selectedRequest.aktifStudiData.angkatan}</strong></span>
+                        <span className="block">Keperluan: <strong>{selectedRequest.aktifStudiData.keperluan}</strong></span>
+                        {selectedRequest.aktifStudiData.catatanTambahan && (
+                          <span className="block">Catatan: <strong>{selectedRequest.aktifStudiData.catatanTambahan}</strong></span>
+                        )}
+                        <span className="block">Penanda tangan: <strong>WD1 (Irma Fitria, S.Si., M.Si.)</strong></span>
+                      </div>
+                    </div>
+                  )}
                   {selectedRequest.parentName && (
                     <div className="pt-1 border-t border-gray-100">
                       <span className="text-gray-500 block">Orang Tua / Wali:</span>
@@ -632,10 +862,27 @@ export default function AdminPortalPage() {
                   )}
                   <div className="pt-2 border-t border-gray-100">
                     <span className="text-gray-500 block">Berkas Lampiran:</span>
-                    <span className="inline-flex items-center gap-1 font-semibold text-primary-600 bg-primary-50 px-2 py-0.5 rounded">
-                      <FileText className="w-3.5 h-3.5" />
-                      {selectedRequest.attachmentName || 'KRS_Mahasiswa.pdf'}
-                    </span>
+                    {selectedRequest.attachments && selectedRequest.attachments.length > 0 ? (
+                      <div className="space-y-1.5 mt-1.5">
+                        {selectedRequest.attachments.map((att) => (
+                          <a
+                            key={att.id}
+                            href={`/api/attachments/${att.id}`}
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-2 py-1.5 rounded-lg transition-colors"
+                            title={att.fileName}
+                          >
+                            <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="truncate">{att.fileName}</span>
+                            <Download className="w-3 h-3 ml-auto flex-shrink-0" />
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 font-semibold text-primary-600 bg-primary-50 px-2 py-0.5 rounded">
+                        <FileText className="w-3.5 h-3.5" />
+                        {selectedRequest.attachmentName || 'KRS_Mahasiswa.pdf'}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -709,6 +956,7 @@ export default function AdminPortalPage() {
                       key={signatureVersion}
                       request={selectedRequest}
                       showPrintButton={false}
+                      embedded
                     />
                   </div>
                 </div>

@@ -3,69 +3,183 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { LetterRequest, getSignature, SignatureData } from '@/lib/letter-service';
-import { Printer, Download, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
-import Button from '@/components/ui/Button';
+import KpLetterBody from '@/components/letter/KpLetterBody';
+import KpAcceptedLetterBody from '@/components/letter/KpAcceptedLetterBody';
+import ActiveStudyLetterBody from '@/components/letter/ActiveStudyLetterBody';
+import { Printer, ShieldCheck, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface OfficialLetterViewProps {
   request: LetterRequest;
   onClose?: () => void;
   showPrintButton?: boolean;
+  /**
+   * Mode tanam (panel admin/dosen): dokumen mengikuti tinggi isinya,
+   * tanpa kontrol zoom dan tanpa mengunci scroll halaman.
+   */
+  embedded?: boolean;
 }
 
 export default function OfficialLetterView({
   request,
   onClose,
   showPrintButton = true,
+  embedded = false,
 }: OfficialLetterViewProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const [signature, setSignature] = useState<SignatureData | null>(null);
+  // Skala pratinjau (1 = lebar pas dengan panel, 1.35 = nyaman dibaca di desktop)
+  const [zoom, setZoom] = useState(embedded ? 1 : 1.35);
+  // Pratinjau selalu dibuka dalam tampilan putih penuh, tanpa navbar/footer/backdrop gelap
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // Ambil tanda tangan digital pimpinan yang tersimpan (PNG base64 + posisi & ukuran)
   // untuk ditempelkan otomatis ke surat. Fallback ke tanda tangan simulasi bila kosong.
   useEffect(() => {
-    setSignature(getSignature());
+    let active = true;
+    getSignature().then((sig) => {
+      if (active) setSignature(sig);
+    });
+    return () => {
+      active = false;
+    };
   }, [request.id]);
 
+  // Saat pratinjau terbuka: kunci scroll halaman, hilangkan latar gelap & chrome aplikasi
+  useEffect(() => {
+    if (embedded) return;
+    const root = document.documentElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    root.setAttribute('data-previewing-letter', 'true');
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      root.removeAttribute('data-previewing-letter');
+    };
+  }, [embedded]);
+
+  /* Fitur lama browser print (dipertahankan, sementara dimatikan) */
+  /*
   const handlePrint = () => {
-    window.print();
+    setIsPrinting(true);
+    requestAnimationFrame(() => {
+      window.print();
+      setTimeout(() => setIsPrinting(false), 1200);
+    });
+  };
+  */
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handlePuppeteerPdf = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      const sheetClone = printRef.current?.cloneNode(true) as HTMLElement | null;
+      if (sheetClone) {
+        sheetClone.querySelectorAll('img').forEach((img) => {
+          const src = img.getAttribute('src');
+          if (src && src.startsWith('/')) {
+            img.src = `${window.location.origin}${src}`;
+          }
+        });
+      }
+      const sheetHtml = sheetClone?.innerHTML || printRef.current?.innerHTML || '';
+      const res = await fetch('/api/letter-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheetHtml, ticketNumber: request.ticketNumber }),
+      });
+      if (!res.ok) throw new Error('Gagal menghasilkan PDF via Puppeteer');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${request.ticketNumber || 'surat-resmi'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(msg);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const letterTitleMap: Record<string, string> = {
-    'surat-aktif-studi': 'SURAT KETERANGAN AKTIF KULIAH',
-    'surat-pengantar-kp': 'SURAT PENGANTAR KERJA PRAKTIK',
+    'surat-aktif-studi': 'SURAT KETERANGAN',
+    'surat-pengantar-kp': 'PERMOHONAN KERJA PRAKTIK',
+    'kp-setelah-diterima': 'SURAT PENGANTAR KERJA PRAKTIK',
     'surat-rekomendasi': 'SURAT REKOMENDASI KEMAHASISWAAN',
     'dokumen-akademik': 'SURAT KETERANGAN & PENGESAHAN DOKUMEN AKADEMIK',
     'legalisasi-dokumen': 'LEMBAR PENGESAHAN & LEGALISASI DOKUMEN',
   };
 
+  const isKp = request.serviceType === 'surat-pengantar-kp';
+  const isKpAccepted = request.serviceType === 'kp-setelah-diterima';
+  const isActiveStudy = request.serviceType === 'surat-aktif-studi';
+  const isWd1Family = isKp || isKpAccepted || isActiveStudy;
   const title = letterTitleMap[request.serviceType] || 'SURAT KETERANGAN RESMI MAHASISWA';
   const letterNumber = request.letterNumber || '142/IT10.FSTI/KM/2026';
   const letterDate = request.letterDate || '15 Oktober 2026';
-  const signedBy = request.signedBy || 'Adi Mahmud Jaya Marindra, S.T., M.Eng., Ph.D.';
-  const signedNip = request.signedNip || '198506152014041001';
-  const signedPosition = request.signedPosition || 'Dekan Fakultas Sains dan Teknologi Informasi';
+  // Surat KP (kedua fase) & Surat Keterangan Aktif Studi ditandatangani WD1
+  // (sesuai template resmi), lainnya Dekan.
+  const signedBy =
+    request.signedBy ||
+    (isWd1Family ? 'Irma Fitria, S.Si., M.Si.' : 'Adi Mahmud Jaya Marindra, S.T., M.Eng., Ph.D.');
+  const signedNip = request.signedNip || (isWd1Family ? '199303232022032016' : '198506152014041001');
+  const signedPosition =
+    request.signedPosition ||
+    (isWd1Family
+      ? 'Wakil Dekan Bidang Akademik dan Kemahasiswaan'
+      : 'Dekan Fakultas Sains dan Teknologi Informasi');
 
   return (
-    <div className="w-full">
+     <div className={`${embedded ? '' : 'h-full '}flex flex-col ${isPrinting ? 'print-preview' : ''}`}>
       {/* Action Bar (Hidden when printing) */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-primary-900 to-primary-800 text-white p-4 rounded-t-xl">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-emerald-400" />
-          <div>
-            <h4 className="font-semibold text-sm sm:text-base">Dokumen Resmi Terverifikasi FSTI ITK</h4>
-            <p className="text-xs text-primary-200">
-              Format PDF Terkunci & Keabsahan Tanda Tangan Terproteksi (Sistem Terpadu FSTI)
+      <div className="no-print letter-preview-toolbar sticky top-0 z-20 flex-none flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-primary-900 to-primary-800 text-white px-4 py-3 border-b border-primary-950/40">
+        <div className="flex items-center gap-2 min-w-0">
+          <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <div className="min-w-0">
+            <h4 className="font-semibold text-sm truncate">Dokumen Resmi Terverifikasi FSTI ITK</h4>
+            <p className="text-[11px] text-primary-200 truncate">
+              {request.ticketNumber} · Format A4 siap cetak
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Kontrol zoom hanya berguna di pembaca penuh; di ponsel dokumen sudah pas lebar */}
+          <div className={`${embedded ? 'hidden' : 'hidden md:flex'} items-center gap-0.5 bg-white/10 rounded-lg p-0.5`}>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(0.8, Math.round((z - 0.15) * 100) / 100))}
+              className="p-1.5 rounded-md hover:bg-white/15 transition-colors disabled:opacity-40"
+              disabled={zoom <= 0.8}
+              aria-label="Perkecil tampilan dokumen"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-[11px] font-mono w-10 text-center tabular-nums">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(2.4, Math.round((z + 0.15) * 100) / 100))}
+              className="p-1.5 rounded-md hover:bg-white/15 transition-colors disabled:opacity-40"
+              disabled={zoom >= 2.4}
+              aria-label="Perbesar tampilan dokumen"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
           {showPrintButton && (
             <button
-              onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-primary-900 hover:bg-primary-50 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+              onClick={handlePuppeteerPdf}
+              disabled={isGeneratingPdf}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-primary-900 hover:bg-primary-50 rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
             >
               <Printer className="w-4 h-4" />
-              <span>Cetak / Unduh PDF</span>
+              <span>{isGeneratingPdf ? 'Membuat PDF (Puppeteer)...' : 'Unduh PDF (Puppeteer)'}</span>
             </button>
           )}
           {onClose && (
@@ -79,22 +193,27 @@ export default function OfficialLetterView({
         </div>
       </div>
 
-      {/* Official A4 Sheet */}
-      <div
-        ref={printRef}
-        className="official-letter-sheet bg-white text-gray-900 p-8 sm:p-12 shadow-xl border border-gray-200 font-serif text-[13.5px] leading-relaxed mx-auto max-w-[800px]"
-        style={{ minHeight: '1050px' }}
-      >
+      {/* Lembar dokumen: latar netral terpisah dari halaman, dokumen tampil sebagai kertas */}
+      <div className={`letter-preview-surface flex flex-col bg-slate-200/90 pt-5 pb-16 sm:pt-8 sm:pb-20 ${embedded ? 'letter-preview-embed' : 'flex-1 min-h-0 overflow-y-auto overscroll-contain'}`}>
+        <div
+          className="letter-zoom-frame mx-auto origin-top flex-none transition-transform duration-200"
+          style={{ transform: `scale(${zoom})`, width: `calc(100% - ${Math.ceil((zoom - 1) * 826)}px)` }}
+        >
+          <div
+            ref={printRef}
+            className="official-letter-sheet bg-white text-gray-900 px-5 py-8 sm:px-12 sm:py-12 shadow-lg ring-1 ring-slate-900/5 rounded-sm font-serif text-[12.5px] sm:text-[13.5px] leading-relaxed mx-auto w-full"
+            style={{ minHeight: 'min(1050px, 141vw)' }}
+          >
         {/* Kop Surat Resmi ITK FSTI */}
         <div className="border-b-4 border-double border-gray-900 pb-3 mb-6">
           <div className="flex items-center justify-between gap-4">
-            <div className="w-20 h-20 relative flex-shrink-0">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 relative flex-shrink-0">
               <Image
-                src="/images/logotut.png"
-                alt="Logo Tut Wuri Handayani"
+                src="/images/logoitk.png"
+                alt="Logo ITK"
                 fill
                 className="object-contain"
-                sizes="80px"
+                sizes="(max-width: 640px) 56px, 80px"
               />
             </div>
 
@@ -111,33 +230,78 @@ export default function OfficialLetterView({
               <p className="text-[10.5px] font-sans text-gray-700 mt-1 leading-tight">
                 Kampus ITK Karang Joang, Jl. Soekarno-Hatta KM 15, Balikpapan 76127
                 <br />
-                Laman: https://fsti.itk.ac.id | Surel: fsti@itk.ac.id | Telp: (0542) 8530801
+                Laman: https://fsti.itk.ac.id | Surel: fsti@itk.ac.id | Telp. (0542) 8530801
               </p>
-            </div>
-
-            <div className="w-20 h-20 relative flex-shrink-0">
-              <Image
-                src="/images/logoitk.png"
-                alt="Logo ITK"
-                fill
-                className="object-contain"
-                sizes="80px"
-              />
             </div>
           </div>
         </div>
 
-        {/* Nomor Surat & Judul */}
+        {/* Nomor/Judul — template KP memakai blok Nomor-Perihal, lainnya judul tengah */}
+        {isWd1Family && !isActiveStudy ? (
+          <div className="my-6 space-y-1 font-serif text-gray-900">
+            <table className="w-full text-[13.5px]">
+              <tbody>
+                <tr>
+                  <td className="w-24 py-0.5 align-top">Nomor</td>
+                  <td className="w-3 align-top">:</td>
+                  <td className="py-0.5 font-semibold">{letterNumber}</td>
+                  <td className="w-28 py-0.5 align-top text-right">{letterDate}</td>
+                </tr>
+                {!isKpAccepted && (
+                  <tr>
+                    <td className="py-0.5 align-top">Lampiran</td>
+                    <td className="align-top">:</td>
+                    <td className="py-0.5" colSpan={2}>1 (satu) set proposal</td>
+                  </tr>
+                )}
+                <tr>
+                  <td className="py-0.5 align-top">Perihal</td>
+                  <td className="align-top">:</td>
+                  <td className="py-0.5 font-bold" colSpan={2}>
+                    {isKpAccepted ? 'Surat Pengantar Kerja Praktik' : 'Permohonan Kerja Praktik'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="pt-5">
+              <p className="font-semibold">
+                Yth. {(isKpAccepted ? request.kpDataAccepted?.mitraNama : request.kpData?.mitraNama) || 'Mitra KP'}
+              </p>
+              <p className="whitespace-pre-line">
+                {(isKpAccepted ? request.kpDataAccepted?.mitraAlamat : request.kpData?.mitraAlamat) || 'Alamat Mitra KP'}
+              </p>
+            </div>
+          </div>
+        ) : (
         <div className="text-center my-6">
           <h2 className="text-base font-bold underline uppercase tracking-wider text-gray-900">
             {title}
+            {isActiveStudy && (
+              <span className="font-normal no-underline normal-case"> Nomor : {letterNumber}</span>
+            )}
           </h2>
-          <p className="text-xs font-sans text-gray-800 mt-0.5">
-            Nomor: {letterNumber}
-          </p>
+          {!isActiveStudy && (
+            <p className="text-xs font-sans text-gray-800 mt-0.5">
+              Nomor: {letterNumber}
+            </p>
+          )}
         </div>
+        )}
 
         {/* Isi Surat */}
+        {isActiveStudy ? (
+          /* ---------- Isi sesuai template resmi "SURAT KETERANGAN" (WD1) ---------- */
+          <ActiveStudyLetterBody request={request} letterDate={letterDate} />
+        ) : isKpAccepted ? (
+          /* ---------- Isi sesuai template resmi "Permohonan KP" ---------- */
+          <KpLetterBody
+            request={request}
+            signedBy={signedBy}
+            signedNip={signedNip}
+            signedPosition={signedPosition}
+            signature={signature}
+          />
+        ) : (
         <div className="space-y-4 text-justify font-serif text-gray-900">
           <p>
             Yang bertanda tangan di bawah ini Dekan Fakultas Sains dan Teknologi Informasi Institut Teknologi Kalimantan menerangkan dengan sesungguhnya bahwa:
@@ -263,54 +427,18 @@ export default function OfficialLetterView({
             Demikian dokumen pengesahan keterangan resmi ini kami buat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.
           </p>
         </div>
-
+        )}
         {/* Tanda Tangan & Cap Pejabat */}
-        <div className="mt-12 flex justify-between items-end">
-          {/* QR Verification */}
-          <div className="text-left font-sans text-[11px] text-gray-600 max-w-xs">
-            <div className="border border-gray-300 rounded p-2 bg-gray-50 flex items-center gap-3">
-              <div className="w-16 h-16 bg-white border border-gray-200 p-1 flex items-center justify-center flex-shrink-0">
-                {/* Visual QR Simulator */}
-                <div className="w-full h-full bg-slate-900 grid grid-cols-4 gap-0.5 p-1">
-                  <div className="bg-white"></div>
-                  <div className="bg-slate-900"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-slate-900"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-slate-900"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-slate-900"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-slate-900"></div>
-                  <div className="bg-white"></div>
-                  <div className="bg-white"></div>
-                </div>
-              </div>
-              <div>
-                <p className="font-bold text-gray-800 text-[10.5px]">E-VERIFIKASI KEABSAHAN</p>
-                <p className="text-[9.5px] leading-tight text-gray-500 mt-0.5">
-                  Dokumen ini telah disahkan secara digital oleh Pimpinan FSTI ITK. Pindai untuk verifikasi.
-                </p>
-                <p className="text-[9px] font-mono text-primary-700 mt-1 font-semibold">
-                  TIKET: {request.ticketNumber}
-                </p>
-              </div>
-            </div>
-          </div>
-
+        <div className="mt-10 sm:mt-12 flex flex-col sm:flex-row gap-6 sm:gap-0 justify-between items-start sm:items-end">
           {/* Pejabat Tanda Tangan */}
-          <div className="text-right font-serif text-[13px] relative min-w-[260px]">
+          <div className="text-right font-serif text-[13px] relative w-full sm:w-auto sm:min-w-[260px] sm:ml-auto">
             <p>Balikpapan, {letterDate}</p>
             <p className="font-semibold mt-1">{signedPosition},</p>
 
             {/* Simulated Digital Signature & Stamp */}
-            <div className="h-28 relative flex items-center justify-center my-1">
+            <div className="h-24 sm:h-28 relative flex items-center justify-center my-1">
               {/* Cap Stempel FSTI (Translucent Red-Blue Ink) */}
-              <div className="absolute right-12 w-24 h-24 rounded-full border-2 border-primary-700/60 border-dashed flex flex-col items-center justify-center text-center p-1 text-[8px] font-sans font-bold text-primary-800 rotate-[-12deg] pointer-events-none select-none">
+              <div className="absolute right-6 sm:right-12 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 border-primary-700/60 border-dashed flex flex-col items-center justify-center text-center p-1 text-[8px] font-sans font-bold text-primary-800 rotate-[-12deg] pointer-events-none select-none">
                 <span>INSTITUT TEKNOLOGI KALIMANTAN</span>
                 <span className="text-[9px] text-primary-900 font-extrabold my-0.5">★ FSTI ★</span>
                 <span>DEKAN</span>
@@ -345,41 +473,10 @@ export default function OfficialLetterView({
           </div>
         </div>
 
-        {/* Footer Catatan Proteksi */}
-        <div className="mt-14 pt-4 border-t border-gray-200 text-center font-sans text-[10px] text-gray-500 flex items-center justify-between">
-          <span className="flex items-center gap-1">
-            <Lock className="w-3 h-3 text-gray-400" />
-            Dokumen terenkripsi & anti-ekstraksi aset tanda tangan
-          </span>
-          <span>Sistem Informasi Layanan FSTI ITK — Dicetak pada {new Date().toLocaleDateString('id-ID')}</span>
+          </div>
         </div>
       </div>
 
-      {/* Print Specific CSS */}
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .no-print {
-            display: none !important;
-          }
-          .official-letter-sheet, .official-letter-sheet * {
-            visibility: visible;
-          }
-          .official-letter-sheet {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 20mm !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

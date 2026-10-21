@@ -29,22 +29,20 @@ export default function SurveyGatekeeperModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const fullFeedback = `[Bantuan: ${helpfulness}] [Kecepatan: ${speed}] ${feedback}`.trim();
-      const updated = submitSurveyForRequest(request.id, rating, helpfulness, fullFeedback);
-      setIsSubmitting(false);
-      setIsSuccess(true);
+    const fullFeedback = `[Bantuan: ${helpfulness}] [Kecepatan: ${speed}] ${feedback}`.trim();
+    const updated = await submitSurveyForRequest(request.id, rating, helpfulness, fullFeedback);
+    setIsSubmitting(false);
+    setIsSuccess(true);
 
-      setTimeout(() => {
-        if (updated) {
-          onSurveyCompleted(updated);
-        }
-      }, 1000);
-    }, 600);
+    setTimeout(() => {
+      if (updated) {
+        onSurveyCompleted(updated);
+      }
+    }, 1000);
   };
 
   return (

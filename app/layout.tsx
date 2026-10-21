@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import './letter-print.css';
 import './globals.css';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
 import MaklumatPelayanan from '@/components/ui/MaklumatPelayanan';

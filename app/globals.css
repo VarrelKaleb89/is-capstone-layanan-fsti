@@ -33,7 +33,12 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Inter', sans-serif;
-  overflow-x: hidden;
+  /* overflow-x: hidden sengaja tidak dipakai: memaksa scroll container di body
+     membuat elemen ber-position:fixed terpotong dan menyisakan celah di kanan. */
+}
+
+html {
+  max-width: 100%;
 }
 
 /* Custom scrollbar */

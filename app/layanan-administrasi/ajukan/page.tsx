@@ -28,6 +28,10 @@ import {
 } from 'lucide-react';
 import { createLetterRequest, LetterType, hasCompletedAccessSurvey } from '@/lib/letter-service';
 import ServiceAccessSurveyModal from '@/components/survey/ServiceAccessSurveyModal';
+import KpRegistrationForm from '@/components/letter/KpRegistrationForm';
+import KpAcceptedRegistrationForm from '@/components/letter/KpAcceptedRegistrationForm';
+import { ALL_PRODI } from '@/lib/kp-utils';
+import ActiveStudyRegistrationForm from '@/components/letter/ActiveStudyRegistrationForm';
 
 function AjukanSuratContent() {
   const searchParams = useSearchParams();
@@ -50,6 +54,7 @@ function AjukanSuratContent() {
   const serviceNames: Record<LetterType, string> = {
     'surat-aktif-studi': 'Surat Keterangan Aktif Studi',
     'surat-pengantar-kp': 'Surat Pengantar Kerja Praktik (KP)',
+    'kp-setelah-diterima': 'Pendaftaran Setelah Diterima Kerja Praktik',
     'surat-rekomendasi': 'Surat Rekomendasi Kemahasiswaan / Beasiswa',
     'dokumen-akademik': 'Permohonan Dokumen Akademik (Transkrip, KHS, FRS, SKL)',
     'legalisasi-dokumen': 'Permohonan Legalisasi Dokumen Akademik',
@@ -113,7 +118,7 @@ function AjukanSuratContent() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasCompletedAccessSurvey()) {
       setShowAccessSurveyModal(true);
@@ -122,8 +127,8 @@ function AjukanSuratContent() {
     if (!validate()) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const newReq = createLetterRequest({
+    try {
+      const newReq = await createLetterRequest({
         serviceType,
         serviceName: serviceNames[serviceType],
         fullName: fullName.trim(),
@@ -144,9 +149,12 @@ function AjukanSuratContent() {
         copiesCount,
       });
 
-      setIsSubmitting(false);
       setSubmittedTicket(newReq.ticketNumber);
-    }, 700);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? `Gagal mengirim permohonan: ${err.message}` : 'Gagal mengirim permohonan.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCopyTicket = () => {
@@ -320,7 +328,7 @@ function AjukanSuratContent() {
                         [
                           { id: 'surat-aktif-studi', label: 'Surat Aktif Studi', badge: 'Prioritas', desc: 'Surat keterangan aktif kuliah resmi FSTI' },
                           { id: 'dokumen-akademik', label: 'Dokumen Akademik (Transkrip/KHS/FRS)', badge: 'Mandiri Sistem', desc: 'Transkrip nilai, KHS, FRS, SKL langsung di sistem' },
-                          { id: 'surat-pengantar-kp', label: 'Surat Pengantar KP', badge: 'Magang', desc: 'Pengantar kerja praktik ke instansi' },
+                          { id: 'surat-pengantar-kp', label: 'Pendaftaran KP', badge: 'Formulir Khusus', desc: 'Pendaftaran sebelum diterima KP + unggah dokumen' },
                           { id: 'surat-rekomendasi', label: 'Surat Rekomendasi', badge: 'Beasiswa/Lomba', desc: 'Rekomendasi prestasi, lomba & beasiswa' },
                           { id: 'legalisasi-dokumen', label: 'Legalisasi Dokumen', badge: 'Legalisir Resmi', desc: 'Pengesahan transkrip, ijazah & sertifikat' },
                         ] as const
@@ -328,7 +336,13 @@ function AjukanSuratContent() {
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => setServiceType(item.id)}
+                          onClick={() => {
+                            if (item.id === 'surat-pengantar-kp') {
+                              router.push('/layanan-administrasi/ajukan?jenis=surat-pengantar-kp');
+                            } else {
+                              setServiceType(item.id);
+                            }
+                          }}
                           className={`p-4 rounded-xl border text-left transition-all ${
                             serviceType === item.id
                               ? 'bg-primary-50 border-primary-600 ring-2 ring-primary-500 shadow-sm'
@@ -406,11 +420,9 @@ function AjukanSuratContent() {
                           onChange={(e) => setStudyProgram(e.target.value)}
                           className="w-full p-3 rounded-lg border border-gray-300 text-sm focus:ring-primary-500"
                         >
-                          <option value="Informatika">Informatika</option>
-                          <option value="Sistem Informasi">Sistem Informasi</option>
-                          <option value="Sains Data">Sains Data</option>
-                          <option value="Teknik Elektro">Teknik Elektro</option>
-                          <option value="Bisnis Digital">Bisnis Digital</option>
+                          {ALL_PRODI.map((p) => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -776,10 +788,28 @@ function AjukanSuratContent() {
   );
 }
 
+/** Pembaca params terpisah: alihkan layanan KP ke formulir pendaftaran khusus. */
+function KpRouteSwitch({ children }: { children: React.ReactNode }) {
+  const searchParams = useSearchParams();
+  const jenis = searchParams.get('jenis');
+  if (jenis === 'surat-pengantar-kp') {
+    return <KpRegistrationForm />;
+  }
+  if (jenis === 'kp-setelah-diterima') {
+    return <KpAcceptedRegistrationForm />;
+  }
+  if (jenis === 'surat-aktif-studi') {
+    return <ActiveStudyRegistrationForm />;
+  }
+  return <>{children}</>;
+}
+
 export default function AjukanSuratPage() {
   return (
     <Suspense fallback={<div className="p-12 text-center text-gray-500">Memuat formulir...</div>}>
-      <AjukanSuratContent />
+      <KpRouteSwitch>
+        <AjukanSuratContent />
+      </KpRouteSwitch>
     </Suspense>
   );
 }

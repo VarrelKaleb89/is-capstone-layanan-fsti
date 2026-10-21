@@ -134,7 +134,7 @@ export default function SurveyKepuasanPage() {
             </a>
           </div>
 
-          {/* Iframe Embed — force light background */}
+          {/* Iframe Embed: force light background */}
           <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-md bg-white">
             <iframe
               key={activeTab}

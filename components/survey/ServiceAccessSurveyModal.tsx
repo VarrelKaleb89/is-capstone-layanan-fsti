@@ -38,25 +38,23 @@ export default function ServiceAccessSurveyModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
+    await submitAccessSurvey({
+      rating,
+      helpfulness,
+      satisfactionAspects: [aspect],
+      feedback: feedback.trim() || undefined,
+    });
+
+    setIsSubmitting(false);
+    setIsSuccess(true);
+
     setTimeout(() => {
-      submitAccessSurvey({
-        rating,
-        helpfulness,
-        satisfactionAspects: [aspect],
-        feedback: feedback.trim() || undefined,
-      });
-
-      setIsSubmitting(false);
-      setIsSuccess(true);
-
-      setTimeout(() => {
-        onSuccess();
-      }, 900);
-    }, 600);
+      onSuccess();
+    }, 900);
   };
 
   return (
